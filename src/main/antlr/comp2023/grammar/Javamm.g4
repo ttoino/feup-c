@@ -53,12 +53,12 @@ class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? '{' progr
 
 program_definition : ( variable_declaration | method_declaration )* ;
 
-variable_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER*  assignment_statement ;
+variable_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* assignment_statement ';' ; // TODO: check if this could be better
 
 method_declaration
     : accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* returnType=TYPE methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' returnValue=( ID | LITERAL ) ';' )? '}' #Method
     | accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* returnType='void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
-    | accessModifier='public' 'static' returnType='void' methodName='main' '(' argType='String[]' argName='args' ')' '{' statement* ( 'return' ';' )? '}' #MainMethod // isolate the main method so it is distinct in the AST
+    // | accessModifier='public' 'static' returnType='void' methodName='main' '(' argType='String[]' argName='args' ')' '{' statement* ( 'return' ';' )? '}' #MainMethod // isolate the main method so it is distinct in the AST
     ;
 
 method_call
@@ -69,17 +69,20 @@ method_call
 parameter_list : argType=TYPE argName=ID ( ',' argType=TYPE argName=ID )* ;
 argument_list : argName=ID ( ',' argName=ID )* ;
 
-assignment_statement: varType=TYPE id=ID op='=' value=statement ; // TODO: there might be edge cases with this
+assignment_statement: varType=TYPE id=ID ( op='=' value=expression )? ; // TODO: there might be edge cases with this
 
 statement
     : expression ';' #ExpressionStatement
-    | assignment_statement ';' #AssignmentStatement
+    | variable_declaration #AssignmentStatement // TODO: ew
     | method_call ';' #MethodCallStatement
     ;
 
 expression
-    : expression op=('*' | '/') expression #BinaryOp
+    : '(' expression ')' #ExplicitPriority
+    | '!' expression #BooleanNegation
+    | expression op=('*' | '/') expression #BinaryOp
     | expression op=('+' | '-') expression #BinaryOp
     | value=LITERAL #Literal
     | value=ID #Identifier
+    | id=ID '=' value=expression #AssignmentExpression
     ;

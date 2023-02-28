@@ -15,7 +15,9 @@ boas
 class B extends A {
 
     public static void main(String[] args) {
-        char c = 'c';
+        char c = '3';
+
+        String[] s;
 
         A.B.test().bogos(args);
     }
