@@ -1,2 +1,27 @@
-class Test {
+// $
+import A;
+// _
+/*
+
+
+
+
+top
+boas
+
+
+
+*/
+class B extends A {
+
+    public static void main(String[] args) {
+        char c = 'c';
+
+        A.B.test().bogos(args);
+    }
+
+    private int a = 0;
+
+    private abstract final int double(long l, boolean b) {
+    }
 }
