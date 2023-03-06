@@ -22,9 +22,9 @@ CHAR_LITERAL: '\'' ( LETTER | DIGIT | SYMBOL | EOL | WHITE_SPACE ) '\'' ; // TOD
 ACCESS_MODIFIER: ( 'public' | 'private' | 'protected' ) ;
 NON_ACCESS_MODIFIER: ( 'static' | 'final' | 'abstract' ) ; // TODO: may need to change this when we create method local variables
 
-TYPE: ( 'int' | 'long' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
+TYPE: ( 'int' | 'long' | 'float' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
 
-NUMBER : DIGIT+ git@git.fe.up.pt:compilers2023/comp2023-9c.git;
+NUMBER : DIGIT+
 // TEXT : (LETTER | DIGIT /*| SYMBOL */| WHITE_SPACE)+ ;
 
 SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
