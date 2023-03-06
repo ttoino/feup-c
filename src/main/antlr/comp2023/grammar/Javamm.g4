@@ -77,6 +77,18 @@ statement
     : expression ';' #ExpressionStatement
     | variable_declaration #AssignmentStatement // TODO: ew
     | method_call ';' #MethodCallStatement
+    | '{' statement* '}' #StatementBlock
+    | 'if' '(' expression ')' statement ( 'else' statement )? #IfStatement
+    | 'while' '(' expression ')' statement #WhileStatement
+    | 'do' statement 'while' '(' expression ')' ';' #DoStatement
+    | 'for' '(' expression? ';' expression? ';' expression? ')' statement #ForStatement
+    | 'for' '(' varType=TYPE id=ID ':' expression ')' statement #ForEachStatement
+    | 'switch' '(' expression ')' '{' case_statement* '}' #SwitchStatement
+    ;
+
+case_statement
+    : 'case' val=LITERAL ':' statement*
+    | 'default' ':' statement*
     ;
 
 expression
