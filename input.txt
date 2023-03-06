@@ -18,8 +18,9 @@ class B extends A {
         char c = '3';
         int i = 2341234;
         float f = 0.4334;
+        String s = "akjnsdkjasdjkas;\"\\ \n \u3824";
 
-        String[] s;
+        String[] ss;
 
         A.B.test().bogos(args);
     }

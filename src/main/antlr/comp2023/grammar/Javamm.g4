@@ -12,11 +12,11 @@ SINGLE_LINE_COMMENT : '//' (~[\r\n])* -> skip;
 WS : ( EOL | WHITE_SPACE )+ -> skip ;
 
 // literals should have priority in their interpretation
-LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL /*| STRING_LITERAL*/ ) ;
+LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL ) ;
 NUMBER_LITERAL: INTEGER | FLOAT;
 BOOLEAN_LITERAL: ( 'false' | 'true' ) ;
-// STRING_LITERAL: '"' TEXT '"' ; // TODO: handle double quote
-CHAR_LITERAL: '\'' ( LETTER | DIGIT | SYMBOL | EOL | WHITE_SPACE ) '\'' ; // TODO: handle single quoted
+STRING_LITERAL: '"' ( TEXT_CHAR | '\'' )* '"' ;
+CHAR_LITERAL: '\'' ( TEXT_CHAR | '"' ) '\'' ;
 
 // these are keywords, should take precedence
 ACCESS_MODIFIER: ( 'public' | 'private' | 'protected' ) ;
@@ -24,11 +24,12 @@ NON_ACCESS_MODIFIER: ( 'static' | 'final' | 'abstract' ) ; // TODO: may need to 
 
 TYPE: ( 'int' | 'long' | 'float' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
 
-INTEGER : DIGIT+;
-FLOAT : DIGIT+ '.' (DIGIT+)? | (DIGIT+)? '.' DIGIT+;
-// TEXT : (LETTER | DIGIT /*| SYMBOL */| WHITE_SPACE)+ ;
+INTEGER : DIGIT+ | '0x' HEX_DIGIT+ | '0b' BIN_DIGIT ;
+FLOAT : ( DIGIT+ '.' (DIGIT+)? | (DIGIT+)? '.' DIGIT+ ) ( [eE] DIGIT+ )?;
+fragment ESCAPED_CHAR : '\\' ( [tbnrf'"\\] | 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT);
+fragment TEXT_CHAR : ~['"\\] | ESCAPED_CHAR ;
 
-SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
+fragment SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
 
 // IDs in the program (variable/method/class names)
 ID : ( LETTER | UNDERSCORE | DOLLAR )( LETTER | UNDERSCORE | DIGIT | DOLLAR )* ;
@@ -38,11 +39,13 @@ EOL : [\n\r] ;
 WHITE_SPACE : [ \t\f] ;
 
 // basic characters
-SPECIAL_CHARS: [!"#%&()=?'.:,;\\|] ; // TODO: handle escapes
-DIGIT : [0-9] ;
-LETTER : [a-zA-Z] ;
-UNDERSCORE : '_' ;
-DOLLAR : '$' ;
+fragment SPECIAL_CHARS: [!"#%&()=?'.:,;\\|] ;
+fragment DIGIT : [0-9] ;
+fragment HEX_DIGIT : [0-9a-fA-F] ;
+fragment BIN_DIGIT : [01] ;
+fragment LETTER : [a-zA-Z] ;
+fragment UNDERSCORE : '_' ;
+fragment DOLLAR : '$' ;
 
 program
     : ( import_statement )* class_declaration EOF
@@ -60,7 +63,7 @@ method_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* simple_
 
 simple_method_declaration
     : returnType=TYPE methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' returnValue=( ID | LITERAL ) ';' )? '}' #Method
-    | returnType='void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
+    | 'void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
     ;
 
 method_call
@@ -68,10 +71,10 @@ method_call
     | ( ID ( '.' ID )? '.' )? methodName=ID '(' argument_list? ')'
     ;
 
-parameter_list : argType=TYPE argName=ID ( ',' argType=TYPE argName=ID )* ;
-argument_list : argName=ID ( ',' argName=ID )* ;
+parameter_list : argType+=TYPE argName+=ID ( ',' argType+=TYPE argName+=ID )* ;
+argument_list : argName+=ID ( ',' argName+=ID )* ;
 
-assignment_statement: varType=TYPE id=ID ( op='=' value=expression )? ; // TODO: there might be edge cases with this
+assignment_statement: varType=TYPE id=ID ( op='=' expression )? ; // TODO: there might be edge cases with this
 
 statement
     : expression ';' #ExpressionStatement
@@ -87,8 +90,8 @@ statement
     ;
 
 case_statement
-    : 'case' val=LITERAL ':' statement*
-    | 'default' ':' statement*
+    : 'case' val=LITERAL ':' statement* #CaseStatement
+    | 'default' ':' statement* #DefaultStatement
     ;
 
 expression
@@ -105,7 +108,7 @@ expression
     | expression op='&&' expression #BinaryOp
     | expression op='||' expression #BinaryOp
     | expression op='?=' expression #BinaryOp
-    | id=ID op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') value=expression #AssignmentExpression
+    | id=ID op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') expression #AssignmentExpression
     | value=LITERAL #Literal
-    | value=ID #Identifier
+    | id=ID #Identifier
     ;
