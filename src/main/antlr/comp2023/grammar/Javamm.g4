@@ -24,7 +24,7 @@ NON_ACCESS_MODIFIER: ( 'static' | 'final' | 'abstract' ) ; // TODO: may need to 
 
 TYPE: ( 'int' | 'long' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
 
-NUMBER : DIGIT+ ;
+NUMBER : DIGIT+ git@git.fe.up.pt:compilers2023/comp2023-9c.git;
 // TEXT : (LETTER | DIGIT /*| SYMBOL */| WHITE_SPACE)+ ;
 
 SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
@@ -79,10 +79,19 @@ statement
 
 expression
     : '(' expression ')' #ExplicitPriority
-    | '!' expression #BooleanNegation
-    | expression op=('*' | '/') expression #BinaryOp
+    | op=('!' | '++' | '--' | '~') expression #UnaryOp
+    | expression op=('++' | '--') #UnaryOp
+    | expression op=('*' | '/' | '%') expression #BinaryOp
     | expression op=('+' | '-') expression #BinaryOp
+    | expression op=('<<' | '>>' | '>>>') expression #BinaryOp
+    | expression op=('>' | '<' | '>=' | '<=') expression #BinaryOp
+    | expression op=('==' | '!=') expression #BinaryOp
+    | expression op=('&') expression #BinaryOp
+    | expression op=('|') expression #BinaryOp
+    | expression op=('&&') expression #BinaryOp
+    | expression op=('||') expression #BinaryOp
+    | expression op=('?=') expression #BinaryOp
     | value=LITERAL #Literal
     | value=ID #Identifier
-    | id=ID '=' value=expression #AssignmentExpression
+    | id=ID ('=' | '+=' | '-=' | '*=' | '/=' | '%=') value=expression #AssignmentExpression
     ;
