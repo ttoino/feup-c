@@ -91,7 +91,7 @@ expression
     | expression op=('&&') expression #BinaryOp
     | expression op=('||') expression #BinaryOp
     | expression op=('?=') expression #BinaryOp
+    | id=ID op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') value=expression #AssignmentExpression
     | value=LITERAL #Literal
     | value=ID #Identifier
-    | id=ID ('=' | '+=' | '-=' | '*=' | '/=' | '%=') value=expression #AssignmentExpression
     ;
