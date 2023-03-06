@@ -16,6 +16,8 @@ class B extends A {
 
     public static void main(String[] args) {
         char c = '3';
+        int i = 2341234;
+        float f = 0.4334;
 
         String[] s;
 

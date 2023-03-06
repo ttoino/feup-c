@@ -13,7 +13,7 @@ WS : ( EOL | WHITE_SPACE )+ -> skip ;
 
 // literals should have priority in their interpretation
 LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL /*| STRING_LITERAL*/ ) ;
-NUMBER_LITERAL: NUMBER ;
+NUMBER_LITERAL: INTEGER | FLOAT;
 BOOLEAN_LITERAL: ( 'false' | 'true' ) ;
 // STRING_LITERAL: '"' TEXT '"' ; // TODO: handle double quote
 CHAR_LITERAL: '\'' ( LETTER | DIGIT | SYMBOL | EOL | WHITE_SPACE ) '\'' ; // TODO: handle single quoted
@@ -24,7 +24,8 @@ NON_ACCESS_MODIFIER: ( 'static' | 'final' | 'abstract' ) ; // TODO: may need to 
 
 TYPE: ( 'int' | 'long' | 'float' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
 
-NUMBER : DIGIT+
+INTEGER : DIGIT+;
+FLOAT : DIGIT+ '.' (DIGIT+)? | (DIGIT+)? '.' DIGIT+;
 // TEXT : (LETTER | DIGIT /*| SYMBOL */| WHITE_SPACE)+ ;
 
 SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
@@ -55,10 +56,11 @@ program_definition : ( variable_declaration | method_declaration )* ;
 
 variable_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* assignment_statement ';' ; // TODO: check if this could be better
 
-method_declaration
-    : accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* returnType=TYPE methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' returnValue=( ID | LITERAL ) ';' )? '}' #Method
-    | accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* returnType='void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
-    // | accessModifier='public' 'static' returnType='void' methodName='main' '(' argType='String[]' argName='args' ')' '{' statement* ( 'return' ';' )? '}' #MainMethod // isolate the main method so it is distinct in the AST
+method_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* simple_method_declaration;
+
+simple_method_declaration
+    : returnType=TYPE methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' returnValue=( ID | LITERAL ) ';' )? '}' #Method
+    | returnType='void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
     ;
 
 method_call
@@ -86,11 +88,11 @@ expression
     | expression op=('<<' | '>>' | '>>>') expression #BinaryOp
     | expression op=('>' | '<' | '>=' | '<=') expression #BinaryOp
     | expression op=('==' | '!=') expression #BinaryOp
-    | expression op=('&') expression #BinaryOp
-    | expression op=('|') expression #BinaryOp
-    | expression op=('&&') expression #BinaryOp
-    | expression op=('||') expression #BinaryOp
-    | expression op=('?=') expression #BinaryOp
+    | expression op='&' expression #BinaryOp
+    | expression op='|' expression #BinaryOp
+    | expression op='&&' expression #BinaryOp
+    | expression op='||' expression #BinaryOp
+    | expression op='?=' expression #BinaryOp
     | id=ID op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') value=expression #AssignmentExpression
     | value=LITERAL #Literal
     | value=ID #Identifier

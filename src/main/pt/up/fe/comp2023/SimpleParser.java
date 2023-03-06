@@ -41,10 +41,13 @@ public class SimpleParser implements JmmParser {
         try {
             // Convert code string into a character stream
             var input = new ANTLRInputStream(jmmCode);
+
             // Transform characters into tokens using the lexer
             var lex = new pt.up.fe.comp2023.JavammLexer(input);
+
             // Wrap lexer around a token stream
             var tokens = new CommonTokenStream(lex);
+
             // Transforms tokens into a parse tree
             var parser = new pt.up.fe.comp2023.JavammParser(tokens);
 
