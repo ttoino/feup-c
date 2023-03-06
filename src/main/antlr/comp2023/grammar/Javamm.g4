@@ -11,23 +11,26 @@ SINGLE_LINE_COMMENT : '//' (~[\r\n])* -> skip;
 // Skip white space characters
 WS : ( EOL | WHITE_SPACE )+ -> skip ;
 
+LP : '(' ;
+RP : ')' ;
+LB : '{' ;
+RB : '}' ;
+
 // literals should have priority in their interpretation
-LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL ) ;
+LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL /* | ARRAY_LITERAL */ ) ;
 NUMBER_LITERAL: INTEGER | FLOAT;
 BOOLEAN_LITERAL: ( 'false' | 'true' ) ;
 STRING_LITERAL: '"' ( TEXT_CHAR | '\'' )* '"' ;
 CHAR_LITERAL: '\'' ( TEXT_CHAR | '"' ) '\'' ;
+// ARRAY_LITERAL: LB ( LITERAL ( ',' LITERAL )* )? RB ;
 
 // these are keywords, should take precedence
-ACCESS_MODIFIER: ( 'public' | 'private' | 'protected' ) ;
-NON_ACCESS_MODIFIER: ( 'static' | 'final' | 'abstract' ) ; // TODO: may need to change this when we create method local variables
+MODIFIER: ( 'public' | 'private' | 'protected' | 'static' | 'final' | 'abstract' ) ;
 
-TYPE: ( 'int' | 'long' | 'float' | 'short' | 'byte' | 'char' | 'boolean' | 'String' ) ( '[' ']' )?;
-
-INTEGER : DIGIT+ | '0x' HEX_DIGIT+ | '0b' BIN_DIGIT ;
-FLOAT : ( DIGIT+ '.' (DIGIT+)? | (DIGIT+)? '.' DIGIT+ ) ( [eE] DIGIT+ )?;
-fragment ESCAPED_CHAR : '\\' ( [tbnrf'"\\] | 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT);
-fragment TEXT_CHAR : ~['"\\] | ESCAPED_CHAR ;
+INTEGER : '0' OCT_DIGIT+ | DIGIT+ | '0x' HEX_DIGIT+ | '0b' BIN_DIGIT+ ;
+FLOAT : ( DIGIT+ '.' DIGIT* | DIGIT* '.' DIGIT+ ) ( [eE] DIGIT+ )?;
+fragment ESCAPED_CHAR : '\\' ( [tbnrfs'"\\] | 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT | OCT_DIGIT OCT_DIGIT? OCT_DIGIT?);
+fragment TEXT_CHAR : ~['"\\\r\n\f] | ESCAPED_CHAR ;
 
 fragment SYMBOL : ( SPECIAL_CHARS | DOLLAR | UNDERSCORE ) ;
 
@@ -43,9 +46,11 @@ fragment SPECIAL_CHARS: [!"#%&()=?'.:,;\\|] ;
 fragment DIGIT : [0-9] ;
 fragment HEX_DIGIT : [0-9a-fA-F] ;
 fragment BIN_DIGIT : [01] ;
+fragment OCT_DIGIT : [0-7] ;
 fragment LETTER : [a-zA-Z] ;
 fragment UNDERSCORE : '_' ;
 fragment DOLLAR : '$' ;
+
 
 program
     : ( import_statement )* class_declaration EOF
@@ -53,40 +58,32 @@ program
 
 import_statement : 'import' ID ( '.' ID )* ';' #ImportStatement ;
 
-class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? '{' program_definition '}' #ClassDeclaration ;
+class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? LB program_definition RB #ClassDeclaration ;
 
 program_definition : ( variable_declaration | method_declaration )* ;
 
-variable_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* assignment_statement ';' ; // TODO: check if this could be better
+variable_declaration: (modifiers+=MODIFIER)* assignment_statement ';' ; // TODO: check if this could be better
 
-method_declaration: accessModifier=ACCESS_MODIFIER? NON_ACCESS_MODIFIER* simple_method_declaration;
+method_declaration: (modifiers+=MODIFIER)* type methodName=ID '(' parameter_list? ')' LB statement* RB;
 
-simple_method_declaration
-    : returnType=TYPE methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' returnValue=( ID | LITERAL ) ';' )? '}' #Method
-    | 'void' methodName=ID '(' parameter_list? ')' '{' statement* ( 'return' ';' )? '}' #VoidMethod
-    ;
+parameter_list : type argName+=ID ( ',' type argName+=ID )* ;
+argument_list : expression ( ',' expression )* ;
 
-method_call
-    : method_call '.' method_call
-    | ( ID ( '.' ID )? '.' )? methodName=ID '(' argument_list? ')'
-    ;
-
-parameter_list : argType+=TYPE argName+=ID ( ',' argType+=TYPE argName+=ID )* ;
-argument_list : argName+=ID ( ',' argName+=ID )* ;
-
-assignment_statement: varType=TYPE id=ID ( op='=' expression )? ; // TODO: there might be edge cases with this
+assignment_statement: type id=ID ( op='=' expression )? ; // TODO: there might be edge cases with this
 
 statement
-    : expression ';' #ExpressionStatement
-    | variable_declaration #AssignmentStatement // TODO: ew
-    | method_call ';' #MethodCallStatement
-    | '{' statement* '}' #StatementBlock
-    | 'if' '(' expression ')' statement ( 'else' statement )? #IfStatement
+    : 'if' '(' expression ')' statement ( 'else' statement )? #IfStatement
     | 'while' '(' expression ')' statement #WhileStatement
     | 'do' statement 'while' '(' expression ')' ';' #DoStatement
     | 'for' '(' expression? ';' expression? ';' expression? ')' statement #ForStatement
-    | 'for' '(' varType=TYPE id=ID ':' expression ')' statement #ForEachStatement
-    | 'switch' '(' expression ')' '{' case_statement* '}' #SwitchStatement
+    | 'for' '(' varType=ID id=ID ':' expression ')' statement #ForEachStatement
+    | 'switch' '(' expression ')' LB case_statement* RB #SwitchStatement
+    | 'return' expression? ';' #ReturnStatement
+    | 'break' ';' #BreakStatement
+    | 'continue' ';' #ContinueStatement
+    | LB statement* RB #StatementBlock
+    | expression ';' #ExpressionStatement
+    | variable_declaration #AssignmentStatement // TODO: ew
     ;
 
 case_statement
@@ -94,21 +91,32 @@ case_statement
     | 'default' ':' statement* #DefaultStatement
     ;
 
+type
+    : id=ID #SimpleType
+    | id=ID '[' ']' #Array
+    ;
+
 expression
     : '(' expression ')' #ExplicitPriority
-    | op=('!' | '++' | '--' | '~') expression #UnaryOp
-    | expression op=('++' | '--') #UnaryOp
+    | 'new' id=ID '(' argument_list? ')' #NewObject
+    | 'new' id=ID '[' expression ']' #NewArray
+    | expression '.' member=ID '(' argument_list? ')' #MethodCall
+    | expression '.' member=ID #PropertyAccess
+    | expression '[' expression ']' #ArrayAccess
+    | expression op=('++' | '--') #UnaryPostOp
+    | op=('!' | '++' | '--' | '+' | '-' | '~') expression #UnaryPreOp
     | expression op=('*' | '/' | '%') expression #BinaryOp
     | expression op=('+' | '-') expression #BinaryOp
     | expression op=('<<' | '>>' | '>>>') expression #BinaryOp
     | expression op=('>' | '<' | '>=' | '<=') expression #BinaryOp
     | expression op=('==' | '!=') expression #BinaryOp
     | expression op='&' expression #BinaryOp
+    | expression op='^' expression #BinaryOp
     | expression op='|' expression #BinaryOp
     | expression op='&&' expression #BinaryOp
     | expression op='||' expression #BinaryOp
-    | expression op='?=' expression #BinaryOp
-    | id=ID op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') expression #AssignmentExpression
-    | value=LITERAL #Literal
-    | id=ID #Identifier
+    | expression '?' expression ':' expression #TernaryOp
+    | expression op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') expression #AssignmentExpression
+    | value=LITERAL #LiteralExpression
+    | id=ID #IdentifierExpression
     ;
