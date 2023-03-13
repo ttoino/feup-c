@@ -17,7 +17,8 @@ LB : '{' ;
 RB : '}' ;
 
 // literals should have priority in their interpretation
-LITERAL: ( NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL /* | ARRAY_LITERAL */ ) ;
+LITERAL: ( NULL_LITERAL | NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL /* | ARRAY_LITERAL */ ) ;
+NULL_LITERAL: 'null' ;
 NUMBER_LITERAL: INTEGER | FLOAT;
 BOOLEAN_LITERAL: ( 'false' | 'true' ) ;
 STRING_LITERAL: '"' ( TEXT_CHAR | '\'' )* '"' ;
@@ -93,7 +94,7 @@ case_statement
 
 type
     : id=ID #SimpleType
-    | id=ID '[' ']' #Array
+    | type '[' ']' #Array
     ;
 
 expression
@@ -116,7 +117,7 @@ expression
     | expression op='&&' expression #BinaryOp
     | expression op='||' expression #BinaryOp
     | expression '?' expression ':' expression #TernaryOp
-    | expression op=('=' | '+=' | '-=' | '*=' | '/=' | '%=') expression #AssignmentExpression
+    | expression op=('=' | '+=' | '-=' | '*=' | '/=' | '%=' | '<<=' | '>>=' | '>>>=') expression #AssignmentExpression
     | value=LITERAL #LiteralExpression
     | id=ID #IdentifierExpression
     ;
