@@ -52,7 +52,7 @@ program
     : ( import_statement )* class_declaration EOF
     ;
 
-import_statement : 'import' ID ( '.' ID )* ';' #ImportStatement ;
+import_statement : 'import' ( packages+=ID '.' )* className=ID ';' #ImportStatement ;
 
 class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? '{' program_definition '}' #ClassDeclaration ;
 
@@ -60,12 +60,12 @@ program_definition : ( variable_declaration | method_declaration )* ;
 
 variable_declaration: (modifiers+=MODIFIER)* assignment_statement ';' ; // TODO: check if this could be better
 
-method_declaration: (modifiers+=MODIFIER)* type methodName=ID '(' parameter_list? ')' '{' statement* '}';
+method_declaration: (modifiers+=MODIFIER)* type methodName=ID '(' parameter_list? ')' '{' statement* '}' #MethodDeclaration ;
 
-parameter_list : type argName+=ID ( ',' type argName+=ID )* ;
+parameter_list : type argName+=ID ( ',' type argName+=ID )* #ParameterList ;
 argument_list : expression ( ',' expression )* ;
 
-assignment_statement: type id=ID ( op='=' expression )? ; // TODO: there might be edge cases with this
+assignment_statement: type id=ID ( op='=' expression )? #VariableDeclaration ; // TODO: there might be edge cases with this
 
 statement
     : 'if' '(' expression ')' statement ( 'else' statement )? #IfStatement
@@ -89,7 +89,7 @@ case_statement
 
 type
     : id=ID #SimpleType
-    | type '[' ']' #Array
+    | type '[' ']' #ArrayType
     ;
 
 expression
