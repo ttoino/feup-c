@@ -11,11 +11,6 @@ SINGLE_LINE_COMMENT : '//' (~[\r\n])* -> skip;
 // Skip white space characters
 WS : ( EOL | WHITE_SPACE )+ -> skip ;
 
-LP : '(' ;
-RP : ')' ;
-LB : '{' ;
-RB : '}' ;
-
 // literals should have priority in their interpretation
 LITERAL: ( NULL_LITERAL | NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL /* | ARRAY_LITERAL */ ) ;
 NULL_LITERAL: 'null' ;
@@ -59,13 +54,13 @@ program
 
 import_statement : 'import' ID ( '.' ID )* ';' #ImportStatement ;
 
-class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? LB program_definition RB #ClassDeclaration ;
+class_declaration : 'class' className=ID ( 'extends' parentClass=ID )? '{' program_definition '}' #ClassDeclaration ;
 
 program_definition : ( variable_declaration | method_declaration )* ;
 
 variable_declaration: (modifiers+=MODIFIER)* assignment_statement ';' ; // TODO: check if this could be better
 
-method_declaration: (modifiers+=MODIFIER)* type methodName=ID '(' parameter_list? ')' LB statement* RB;
+method_declaration: (modifiers+=MODIFIER)* type methodName=ID '(' parameter_list? ')' '{' statement* '}';
 
 parameter_list : type argName+=ID ( ',' type argName+=ID )* ;
 argument_list : expression ( ',' expression )* ;
@@ -77,12 +72,12 @@ statement
     | 'while' '(' expression ')' statement #WhileStatement
     | 'do' statement 'while' '(' expression ')' ';' #DoStatement
     | 'for' '(' expression? ';' expression? ';' expression? ')' statement #ForStatement
-    | 'for' '(' varType=ID id=ID ':' expression ')' statement #ForEachStatement
-    | 'switch' '(' expression ')' LB case_statement* RB #SwitchStatement
+    | 'for' '(' type id=ID ':' expression ')' statement #ForEachStatement
+    | 'switch' '(' expression ')' '{' case_statement* '}' #SwitchStatement
     | 'return' expression? ';' #ReturnStatement
     | 'break' ';' #BreakStatement
     | 'continue' ';' #ContinueStatement
-    | LB statement* RB #StatementBlock
+    | '{' statement* '}' #StatementBlock
     | expression ';' #ExpressionStatement
     | variable_declaration #AssignmentStatement // TODO: ew
     ;
