@@ -1,0 +1,200 @@
+package pt.up.fe.comp2023;
+
+import pt.up.fe.comp.jmm.analysis.table.Symbol;
+import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
+import pt.up.fe.comp.jmm.analysis.table.Type;
+import pt.up.fe.comp.jmm.ast.AJmmVisitor;
+import pt.up.fe.comp.jmm.ast.JmmNode;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class JmmSymbolTable implements SymbolTable {
+    private final List<String> imports = new ArrayList<>();
+    private final List<Symbol> fields = new ArrayList<>();
+    private final List<Method> methods = new ArrayList<>();
+
+    private String className;
+    private String superName;
+
+    private String packageName;
+
+    private boolean hasMainMethod;
+
+    public JmmSymbolTable(JmmNode node) {
+        new Visitor().visit(node);
+    }
+
+    @Override
+    public List<String> getImports() {
+        return imports;
+    }
+
+    @Override
+    public String getClassName() {
+        return className;
+    }
+
+    @Override
+    public String getSuper() {
+        return superName;
+    }
+
+    public String getPackage() {
+        return packageName;
+    }
+
+    public boolean hasMainMethod() {
+        return hasMainMethod;
+    }
+
+    @Override
+    public List<Symbol> getFields() {
+        return fields;
+    }
+
+    @Override
+    public List<String> getMethods() {
+        return methods.stream().map(Method::getName).collect(Collectors.toList());
+    }
+
+    @Override
+    public Type getReturnType(String s) {
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getReturnType();
+    }
+
+    @Override
+    public List<Symbol> getParameters(String s) {
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getParameters();
+    }
+
+    @Override
+    public List<Symbol> getLocalVariables(String s) {
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getLocalVariables();
+    }
+
+    private class Visitor extends AJmmVisitor<Object, Object> {
+        @Override
+        protected void buildVisitor() {
+            setDefaultVisit(this::visitOther);
+            addVisit("PackageDeclaration", this::visitPackage);
+            addVisit("ClassDeclaration", this::visitClass);
+            addVisit("ParentClass", this::visitParentClass);
+            addVisit("MethodDeclaration", this::visitMethod);
+            addVisit("ParameterList", this::visitParameters);
+            addVisit("PrimitiveType", this::visitType);
+            addVisit("VoidType", this::visitType);
+            addVisit("ComplexType", this::visitType);
+            addVisit("ArrayType", this::visitType);
+            addVisit("VariableDeclaration", this::visitVariable);
+            addVisit("ImportStatement", this::visitImport);
+        }
+
+        private Object visitOther(JmmNode node, Object context) {
+            for (var child : node.getChildren())
+                visit(child, context);
+
+            return context;
+        }
+
+        private Object visitClass(JmmNode node, Object context) {
+            className = node.get("className");
+
+            for (var child : node.getChildren())
+                visit(child, context);
+
+            return context;
+        }
+
+        private Object visitParentClass(JmmNode node, Object context) {
+
+            superName = ((ArrayList<String>) node.getObject("parentPackage")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("parentClass");
+
+            return context;
+        }
+
+        private Object visitPackage(JmmNode node, Object context) {
+
+            packageName = ((ArrayList<String>) node.getObject("packagePath")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
+
+            return context;
+        }
+
+        private Object visitImport(JmmNode node, Object context) {
+            imports.add(node.get("className"));
+
+            return context;
+        }
+
+        private Object visitMethod(JmmNode node, Object context) {
+            var method = new Method(node.get("methodName"));
+
+            methods.add(method);
+
+            if (method.getName().equals("main"))
+                hasMainMethod = true;
+
+            for (var child : node.getChildren())
+                visit(child, method);
+
+            return method;
+        }
+
+        private Object visitType(JmmNode node, Object context) {
+            Type type;
+
+            // FIXME: THIS CODE WAS DONE AT 5AM
+
+            var typeId = node.getOptional("id");
+
+            if (typeId.isPresent()) {
+                var realTypeId = typeId.get(); // TODO: ew
+                var typePrefix = node.getOptionalObject("typePrefix");
+
+                if (typePrefix.isEmpty()) { // Primitive Type
+                    type = new Type(realTypeId, false);
+                } else { // Complex Type
+                    // TODO: EWWWWW
+
+                    var actualType = ((ArrayList<String>) typePrefix.get()).stream().map(s -> s + '.').collect(Collectors.joining()) + realTypeId;
+
+                    type = new Type(actualType, false);
+                }
+            } else if (node.getNumChildren() == 1) // Array Type
+                type = new Type(((Type) visit(node.getJmmChild(0), context)).getName(), true);
+            else // Void Type
+                type = new Type("void", false);
+
+            if (context instanceof Method) ((Method) context).setReturnType(type);
+
+            return type;
+        }
+
+        private Object visitParameters(JmmNode node, Object context) {
+            assert context instanceof Method;
+
+            var params = (List<Object>) node.getOptionalObject("argName").orElse(new ArrayList<>());
+
+            Method method = (Method) context;
+            for (int i = 0; i < node.getChildren().size(); ++i) {
+
+                Type type = (Type) visit(node.getJmmChild(i), method.getParameters());
+
+                Symbol parameter = new Symbol(type, params.get(i).toString());
+
+                method.getParameters().add(parameter);
+            }
+
+            return method.getParameters();
+        }
+
+        private Object visitVariable(JmmNode node, Object context) {
+            var symbol = new Symbol((Type) visit(node.getJmmChild(0)), node.get("id"));
+
+            if (context instanceof Method) ((Method) context).getLocalVariables().add(symbol);
+            else fields.add(symbol);
+
+            return symbol;
+        }
+    }
+}
