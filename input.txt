@@ -14,6 +14,8 @@ boas
 */
 class B extends A {
 
+    private static final static final static final int lol = 3;
+
     public static void main(String[] args) {
         char c = '3';
         int i = 2341234;
@@ -22,11 +24,11 @@ class B extends A {
 
         String[] ss;
 
+        System.out.println(0 && 1 + 2 + 4 % 14 - 3 / i * f < 2);
+
         A.B.test().bogos(args);
     }
 
     private int a = 0;
 
-    private abstract final int double(long l, boolean b) {
-    }
 }

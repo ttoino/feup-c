@@ -7,6 +7,7 @@ import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class JmmSymbolTable implements SymbolTable {
     private final List<String> imports = new ArrayList<>();
@@ -15,6 +16,10 @@ public class JmmSymbolTable implements SymbolTable {
 
     private String className;
     private String superName;
+
+    private String packageName;
+
+    private boolean hasMainMethod;
 
     public JmmSymbolTable(JmmNode node) {
         new Visitor().visit(node);
@@ -35,6 +40,14 @@ public class JmmSymbolTable implements SymbolTable {
         return superName;
     }
 
+    public String getPackage() {
+        return packageName;
+    }
+
+    public boolean hasMainMethod() {
+        return hasMainMethod;
+    }
+
     @Override
     public List<Symbol> getFields() {
         return fields;
@@ -42,7 +55,7 @@ public class JmmSymbolTable implements SymbolTable {
 
     @Override
     public List<String> getMethods() {
-        return methods.stream().map(Method::getName).toList();
+        return methods.stream().map(Method::getName).collect(Collectors.toList());
     }
 
     @Override
@@ -64,11 +77,14 @@ public class JmmSymbolTable implements SymbolTable {
         @Override
         protected void buildVisitor() {
             setDefaultVisit(this::visitOther);
+            addVisit("PackageDeclaration", this::visitPackage);
             addVisit("ClassDeclaration", this::visitClass);
+            addVisit("ParentClass", this::visitParentClass);
             addVisit("MethodDeclaration", this::visitMethod);
             addVisit("ParameterList", this::visitParameters);
-            addVisit("SimpleType", this::visitType);
             addVisit("PrimitiveType", this::visitType);
+            addVisit("VoidType", this::visitType);
+            addVisit("ComplexType", this::visitType);
             addVisit("ArrayType", this::visitType);
             addVisit("VariableDeclaration", this::visitVariable);
             addVisit("ImportStatement", this::visitImport);
@@ -83,10 +99,23 @@ public class JmmSymbolTable implements SymbolTable {
 
         private Object visitClass(JmmNode node, Object context) {
             className = node.get("className");
-            superName = node.getOptional("parentClass").orElse(null);
 
             for (var child : node.getChildren())
                 visit(child, context);
+
+            return context;
+        }
+
+        private Object visitParentClass(JmmNode node, Object context) {
+
+            superName = ((ArrayList<String>) node.getObject("parentPackage")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("parentClass");
+
+            return context;
+        }
+
+        private Object visitPackage(JmmNode node, Object context) {
+
+            packageName = ((ArrayList<String>) node.getObject("packagePath")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
 
             return context;
         }
@@ -102,6 +131,9 @@ public class JmmSymbolTable implements SymbolTable {
 
             methods.add(method);
 
+            if (method.getName().equals("main"))
+                hasMainMethod = true;
+
             for (var child : node.getChildren())
                 visit(child, method);
 
@@ -111,13 +143,29 @@ public class JmmSymbolTable implements SymbolTable {
         private Object visitType(JmmNode node, Object context) {
             Type type;
 
-            if (node.getOptional("id").isPresent())
-                type = new Type(node.get("id"), false);
-            else
-                type = new Type(((Type) visit(node.getJmmChild(0), context)).getName(), true);
+            // FIXME: THIS CODE WAS DONE AT 5AM
 
-            if (context instanceof Method)
-                ((Method) context).setReturnType(type);
+            var typeId = node.getOptional("id");
+
+            if (typeId.isPresent()) {
+                var realTypeId = typeId.get(); // TODO: ew
+                var typePrefix = node.getOptionalObject("typePrefix");
+
+                if (typePrefix.isEmpty()) { // Primitive Type
+                    type = new Type(realTypeId, false);
+                } else { // Complex Type
+                    // TODO: EWWWWW
+
+                    var actualType = ((ArrayList<String>) typePrefix.get()).stream().map(s -> s + '.').collect(Collectors.joining()) + realTypeId;
+
+                    type = new Type(actualType, false);
+                }
+            } else if (node.getNumChildren() == 1) // Array Type
+                type = new Type(((Type) visit(node.getJmmChild(0), context)).getName(), true);
+            else // Void Type
+                type = new Type("void", false);
+
+            if (context instanceof Method) ((Method) context).setReturnType(type);
 
             return type;
         }
@@ -127,19 +175,24 @@ public class JmmSymbolTable implements SymbolTable {
 
             var params = (List<Object>) node.getOptionalObject("argName").orElse(new ArrayList<>());
 
-            for (int i = 0; i < node.getChildren().size(); ++i)
-                ((Method) context).getParameters().add(new Symbol((Type) visit(node.getJmmChild(i), ((Method) context).getParameters()), params.get(i).toString()));
+            Method method = (Method) context;
+            for (int i = 0; i < node.getChildren().size(); ++i) {
 
-            return ((Method) context).getParameters();
+                Type type = (Type) visit(node.getJmmChild(i), method.getParameters());
+
+                Symbol parameter = new Symbol(type, params.get(i).toString());
+
+                method.getParameters().add(parameter);
+            }
+
+            return method.getParameters();
         }
 
         private Object visitVariable(JmmNode node, Object context) {
             var symbol = new Symbol((Type) visit(node.getJmmChild(0)), node.get("id"));
 
-            if (context instanceof Method)
-                ((Method) context).getLocalVariables().add(symbol);
-            else
-                fields.add(symbol);
+            if (context instanceof Method) ((Method) context).getLocalVariables().add(symbol);
+            else fields.add(symbol);
 
             return symbol;
         }
