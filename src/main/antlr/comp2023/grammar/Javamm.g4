@@ -80,7 +80,9 @@ NUMBER_LITERAL: INTEGER_LITERAL | FLOAT_LITERAL;
 BOOLEAN_LITERAL: ( 'false' | 'true' ) ;
 STRING_LITERAL: '"' ( TEXT_CHAR | '\'' )* '"' ;
 CHAR_LITERAL: '\'' ( TEXT_CHAR | '"' ) '\'' ;
-INTEGER_LITERAL : '0' OCT_DIGIT+ | DIGIT+ | '0x' HEX_DIGIT+ | '0b' BIN_DIGIT+ ;
+// This would be nice but we can't have octal right now :(
+//INTEGER_LITERAL : '0' OCT_DIGIT+ | DIGIT+ | '0x' HEX_DIGIT+ | '0b' BIN_DIGIT+ ;
+INTEGER_LITERAL : '0' | [1-9] DIGIT* ;
 FLOAT_LITERAL : ( DIGIT+ '.' DIGIT* | DIGIT* '.' DIGIT+ ) ( [eE] DIGIT+ )?;
 
 // IDs in the program (variable/method/class names)

@@ -107,21 +107,22 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Object visitParentClass(JmmNode node, Object context) {
-
             superName = ((ArrayList<String>) node.getObject("parentPackage")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("parentClass");
 
             return context;
         }
 
         private Object visitPackage(JmmNode node, Object context) {
-
             packageName = ((ArrayList<String>) node.getObject("packagePath")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
 
             return context;
         }
 
         private Object visitImport(JmmNode node, Object context) {
-            imports.add(node.get("className"));
+            imports.add(
+                    ((ArrayList<Object>) node.getOptionalObject("packages").orElse(new ArrayList<>()))
+                            .stream().map(s -> s.toString() + ".").collect(Collectors.joining())
+                            + node.get("className"));
 
             return context;
         }

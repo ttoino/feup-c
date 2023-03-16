@@ -7,6 +7,7 @@ import java.util.Map;
 
 import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.parser.JmmParserResult;
+import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsLogs;
 import pt.up.fe.specs.util.SpecsSystem;
@@ -38,9 +39,14 @@ public class Launcher {
         JmmParserResult parserResult = parser.parse(code, config);
 
         // Check if there are parsing errors
-        TestUtils.noErrors(parserResult.getReports());
+        for (Report report : parserResult.getReports()) {
+            System.err.println(report.getMessage());
+            return;
+        }
 
         // ... add remaining stages
+        System.out.println("\n====================================== AST =====================================\n");
+        System.out.println(parserResult.getRootNode().toTree());
     }
 
     private static Map<String, String> parseArgs(String[] args) {
