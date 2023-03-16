@@ -134,7 +134,8 @@ argument_list : expression ( COMMA expression )* #ArgumentList ;
 assignment_statement: type id=ID ( op='=' expression )? #VariableDeclaration ; // TODO: there might be edge cases with this
 
 statement
-    : IF LP expression RP statement ELSE statement #IfStatement
+    : LB statement* RB #StatementBlock
+    | IF LP expression RP statement ( ELSE statement )? #IfStatement
     | WHILE LP expression RP statement #WhileStatement
     | DO statement WHILE LP expression RP SC #DoStatement
     | FOR LP expression? SC expression? SC expression? RP statement #ForStatement
@@ -143,7 +144,6 @@ statement
     | RETURN expression? SC #ReturnStatement
     | BREAK SC #BreakStatement
     | CONTINUE SC #ContinueStatement
-    | LB statement* RB #StatementBlock
     | expression SC #ExpressionStatement
     | variable_declaration SC #AssignmentStatement
     ;
