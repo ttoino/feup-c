@@ -1,17 +1,17 @@
 package pt.up.fe.comp2023;
 
-import java.io.File;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
-
-import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
+import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsLogs;
 import pt.up.fe.specs.util.SpecsSystem;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Launcher {
 
@@ -40,10 +40,11 @@ public class Launcher {
         JmmParserResult parserResult = parser.parse(code, config);
 
         // Check if there are parsing errors
-        for (Report report : parserResult.getReports()) {
-            System.err.println(report.getMessage());
+        for (Report report : parserResult.getReports())
+            System.err.println(report.getLine() + ":" + report.getColumn() + " " + report.getMessage());
+
+        if (!parserResult.getReports().isEmpty())
             return;
-        }
 
         // ... add remaining stages
         Analysis analysis = new Analysis();
@@ -61,6 +62,41 @@ public class Launcher {
 
         System.out.println("\n================================= SYMBOL TABLE =================================\n");
         System.out.println(semanticsResult.getSymbolTable().print());
+
+        Backend backend = new Backend();
+
+        OllirResult result = new OllirResult(
+                """
+                        myClass {
+                        \t.construct myClass().V{
+                        \t\tinvokespecial(this, "<init>").V;
+                        \t}
+                        \t
+                        \t.method public sum(A.array.i32).i32 {
+                        \t\tsum.i32 :=.i32 0.i32;
+                        \t\ti.i32 :=.i32 0.i32;
+                        \t\t
+                        \t\tLoop:
+                        \t\t\tt1.i32 :=.i32 arraylength($1.A.array.i32).i32;
+                        \t\t\tif (i.i32 >=.bool t1.i32) goto End;
+                        \t\t\tt2.i32 :=.i32 $1.A[i.i32].i32;
+                        \t\t\tsum.i32 :=.i32 sum.i32 +.i32 t2.i32;
+                        \t\t\ti.i32 :=.i32 i.i32 +.i32 1.i32;
+                        \t\t\tgoto Loop;
+                        \t\tEnd:
+                        \t\t\tret.i32 sum.i32;
+                        \t}
+                        }""", config);
+
+        var generatedCode = backend.toJasmin(result);
+
+        for (Report report : generatedCode.getReports())
+            System.err.println(report.getMessage());
+
+        if (!generatedCode.getReports().isEmpty())
+            return;
+
+        System.out.println(generatedCode.getJasminCode());
     }
 
     private static Map<String, String> parseArgs(String[] args) {
