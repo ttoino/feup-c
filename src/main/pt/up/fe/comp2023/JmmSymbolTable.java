@@ -78,16 +78,16 @@ public class JmmSymbolTable implements SymbolTable {
         protected void buildVisitor() {
             setDefaultVisit(this::visitOther);
             addVisit("PackageDeclaration", this::visitPackage);
+            addVisit("ImportStatement", this::visitImport);
             addVisit("ClassDeclaration", this::visitClass);
             addVisit("ParentClass", this::visitParentClass);
             addVisit("MethodDeclaration", this::visitMethod);
             addVisit("ParameterList", this::visitParameters);
+            addVisit("VariableDeclaration", this::visitVariable);
             addVisit("PrimitiveType", this::visitType);
             addVisit("VoidType", this::visitType);
             addVisit("ComplexType", this::visitType);
             addVisit("ArrayType", this::visitType);
-            addVisit("VariableDeclaration", this::visitVariable);
-            addVisit("ImportStatement", this::visitImport);
         }
 
         private Object visitOther(JmmNode node, Object context) {
@@ -107,7 +107,17 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Object visitParentClass(JmmNode node, Object context) {
-            superName = ((ArrayList<String>) node.getObject("parentPackage")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("parentClass");
+
+            StringBuilder superNameBuilder = new StringBuilder();
+
+            var parentPackage = node.getObject("parentPackage");
+
+            if (parentPackage instanceof List) {
+                superNameBuilder.append(((List<String>)parentPackage).stream().map(s -> s + '.').collect(Collectors.joining()));
+            }
+            superNameBuilder.append(node.get("parentClass"));
+
+            superName = superNameBuilder.toString();
 
             return context;
         }
@@ -127,7 +137,7 @@ public class JmmSymbolTable implements SymbolTable {
             return context;
         }
 
-        private Object visitMethod(JmmNode node, Object context) {
+        private Method visitMethod(JmmNode node, Object context) {
             var method = new Method(node.get("methodName"));
 
             methods.add(method);
@@ -141,7 +151,7 @@ public class JmmSymbolTable implements SymbolTable {
             return method;
         }
 
-        private Object visitType(JmmNode node, Object context) {
+        private Type visitType(JmmNode node, Object context) {
             Type type;
 
             // FIXME: THIS CODE WAS DONE AT 5AM
@@ -171,7 +181,7 @@ public class JmmSymbolTable implements SymbolTable {
             return type;
         }
 
-        private Object visitParameters(JmmNode node, Object context) {
+        private List<Symbol> visitParameters(JmmNode node, Object context) {
             assert context instanceof Method;
 
             var params = (List<Object>) node.getOptionalObject("argName").orElse(new ArrayList<>());
@@ -189,7 +199,7 @@ public class JmmSymbolTable implements SymbolTable {
             return method.getParameters();
         }
 
-        private Object visitVariable(JmmNode node, Object context) {
+        private Symbol visitVariable(JmmNode node, Object context) {
             var symbol = new Symbol((Type) visit(node.getJmmChild(0)), node.get("id"));
 
             if (context instanceof Method) ((Method) context).getLocalVariables().add(symbol);

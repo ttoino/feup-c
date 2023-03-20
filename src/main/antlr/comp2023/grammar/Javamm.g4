@@ -123,10 +123,11 @@ class_declaration : classModifiers+=MODIFIER* CLASS className=ID class_extension
 
 class_extension : EXTENDS ( parentPackage+=ID DOT )* parentClass=ID #ParentClass ;
 
-program_definition : ( ( variable_declaration SC ) | method_declaration )* ;
+program_definition : ( ( variable_declaration SC ) | method_declaration | constructor_declaration )* ;
 
 method_declaration: (modifiers+=MODIFIER)* type methodName=ID LP parameter_list? RP LB statement* RB #MethodDeclaration ;
 variable_declaration: (modifiers+=MODIFIER)* assignment_statement ;
+constructor_declaration: (modifiers+=MODIFIER)* className=ID LP parameter_list? RP LB statement* RB #ConstructorDeclaration;
 
 parameter_list : type argName+=ID ( COMMA type argName+=ID )* #ParameterList ;
 argument_list : expression ( COMMA expression )* #ArgumentList ;

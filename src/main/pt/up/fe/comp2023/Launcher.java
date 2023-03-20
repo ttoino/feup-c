@@ -44,6 +44,11 @@ public class Launcher {
             return;
         }
 
+        JmmSymbolTable symbolTable = new JmmSymbolTable(parserResult.getRootNode());
+
+        System.out.println("Symbol Table:");
+        System.out.println(symbolTable.print());
+
         // ... add remaining stages
         System.out.println("\n====================================== AST =====================================\n");
         System.out.println(parserResult.getRootNode().toTree());
