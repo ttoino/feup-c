@@ -25,6 +25,18 @@ public class Analysis implements JmmAnalysis {
     public JmmSemanticsResult semanticAnalysis(JmmParserResult jmmParserResult) {
         table = new JmmSymbolTable(jmmParserResult.getRootNode());
 
+        var main = table.getMethod("main");
+        if (main == null) {
+            reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "Could not find the main method"));
+        } else {
+            if (!main.getReturnType().print().equals("void"))
+                reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "The main method must return void"));
+            if (main.getParameters().size() != 1 || !main.getParameters().get(0).getType().print().equals("String[]"))
+                reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "The main method must take an argument of type 'String[]'"));
+            if (!main.getModifiers().contains("public") || !main.getModifiers().contains("static"))
+                reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "The main method must be public and static"));
+        }
+
         new SemanticAnalysisVisitor().visit(jmmParserResult.getRootNode());
 
         return new JmmSemanticsResult(
