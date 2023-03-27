@@ -128,15 +128,14 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Object visitPackage(JmmNode node, Object context) {
-            packageName = ((ArrayList<String>) node.getObject("packagePath")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
+            packageName = node.getObjectAsList("packagePath", String.class).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
 
             return context;
         }
 
         private Object visitImport(JmmNode node, Object context) {
             imports.add(
-                    ((ArrayList<Object>) node.getOptionalObject("packages").orElse(new ArrayList<>()))
-                            .stream().map(s -> s.toString() + ".").collect(Collectors.joining())
+                    String.join("", ((ArrayList<String>) node.getOptionalObject("packages").orElse(new ArrayList<>())))
                             + node.get("className"));
 
             return context;
@@ -147,7 +146,7 @@ public class JmmSymbolTable implements SymbolTable {
 
             methods.add(method);
 
-            method.setModifiers(new TreeSet<>((List<String>) node.getObject("modifiers")));
+            method.setModifiers(new TreeSet<>(node.getObjectAsList("modifiers", String.class)));
 
             if (method.getName().equals("main"))
                 hasMainMethod = true;

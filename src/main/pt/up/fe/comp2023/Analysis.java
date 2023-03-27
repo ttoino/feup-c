@@ -292,7 +292,7 @@ public class Analysis implements JmmAnalysis {
         }
 
         protected String checkModifiers(JmmNode node, String context) {
-            var modifiers = (List<String>) node.getObject("modifiers");
+            var modifiers = node.getObjectAsList("modifiers", String.class);
             Set<String> used = new TreeSet<>();
             var allowed = switch (node.getKind()) {
                 case "ClassDeclaration" -> CLASS_MODIFIERS;
