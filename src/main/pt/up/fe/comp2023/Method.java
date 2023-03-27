@@ -5,6 +5,8 @@ import pt.up.fe.comp.jmm.analysis.table.Type;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 public class Method {
     private String name;
@@ -13,11 +15,17 @@ public class Method {
 
     private List<Symbol> localVariables;
 
-    public Method(String name, Type returnType, List<Symbol> parameters, List<Symbol> localVariables) {
+    private Set<String> modifiers;
+
+    public Method(String name, Type returnType, List<Symbol> parameters, List<Symbol> localVariables, Set<String> modifiers) {
         this.name = name;
         this.returnType = returnType;
         this.parameters = parameters;
         this.localVariables = localVariables;
+    }
+
+    public Method(String name, Type returnType, List<Symbol> parameters, List<Symbol> localVariables) {
+        this(name, returnType, parameters, localVariables, new TreeSet<>());
     }
 
     public Method(String name, Type returnType, List<Symbol> parameters) {
@@ -62,5 +70,13 @@ public class Method {
 
     public void setLocalVariables(List<Symbol> localVariables) {
         this.localVariables = localVariables;
+    }
+
+    public Set<String> getModifiers() {
+        return modifiers;
+    }
+
+    public void setModifiers(Set<String> modifiers) {
+        this.modifiers = modifiers;
     }
 }

@@ -2,11 +2,8 @@ package pt.up.fe.comp2023;
 
 import pt.up.fe.comp.jmm.analysis.JmmAnalysis;
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
-import pt.up.fe.comp.jmm.analysis.table.Symbol;
-import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
-import pt.up.fe.comp.jmm.ast.PreorderJmmVisitor;
 import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.ReportType;
@@ -14,9 +11,13 @@ import pt.up.fe.comp.jmm.report.Stage;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+
+import static pt.up.fe.comp2023.Constants.*;
 
 public class Analysis implements JmmAnalysis {
-    private SymbolTable table;
+    private JmmSymbolTable table;
 
     private final List<Report> reports = new ArrayList<>();
 
@@ -34,38 +35,6 @@ public class Analysis implements JmmAnalysis {
     }
 
     private class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
-        public static final String[] INTEGER_TYPES = {
-                "long", "int", "short", "byte", "char"
-        };
-
-        public static final String[] PRIMITIVE_TYPES = {
-                "boolean", "byte", "char", "double", "float", "int", "long", "short"
-        };
-
-        public static final String[] INTEGER_OPS = {
-                "++", "--", "+", "-", "~", "*", "/", "%", "<<", ">>", ">>>", ">", "<", ">=", "<=", "&", "^", "|", "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", ">>>="
-        };
-
-        public static final String[] FLOAT_TYPES = {
-                "float", "double"
-        };
-
-        public static final String[] FLOAT_OPS = {
-                "++", "--", "+", "-", "*", "/", "%", ">", "<", ">=", "<=", "=", "+=", "-=", "*=", "/=", "%="
-        };
-
-        public static final String[] BOOLEAN_OPS = {
-                "!", "&&", "||", "&", "|", "^"
-        };
-
-        public static final String[] UNIVERSAL_OPS = {
-                "=", "==", "!="
-        };
-
-        public static final String[] UNIVERSAL_IMPORTS = {
-                "System", "String"
-        };
-
         SemanticAnalysisVisitor() {
             buildVisitor();
         }
@@ -87,6 +56,10 @@ public class Analysis implements JmmAnalysis {
             addVisit("PropertyAccess", this::checkPropertyAccess);
             addVisit("MethodCall", this::checkMethodCall);
             addVisit("NewObject", this::checkNewObject);
+            addVisit("ClassDeclaration", this::checkModifiers);
+            addVisit("MethodDeclaration", this::checkModifiers);
+            addVisit("ConstructorDeclaration", this::checkModifiers);
+            addVisit("FieldDeclaration", this::checkModifiers);
         }
 
         @Override
@@ -105,6 +78,11 @@ public class Analysis implements JmmAnalysis {
 
         protected String checkThis(JmmNode node, String context) {
             node.put("type", table.getClassName());
+            var method = table.getMethod(context);
+            if (method == null)
+                error(node, "Cannot use 'this' outside a method");
+            else if (method.getModifiers().contains("static"))
+                error(node, "Cannot use 'this' in static method");
             return context;
         }
 
@@ -257,8 +235,17 @@ public class Analysis implements JmmAnalysis {
         }
 
         protected String checkMethodCall(JmmNode node, String context) {
-            var type = node.getJmmChild(0).get("type");
+            String type = table.getClassName();
             var method = node.get("member");
+            List<String> actual = new ArrayList<>();
+
+            for (var child : node.getChildren()) {
+                if (child.getKind().equals("ArgumentList")) {
+                    actual = child.getChildren().stream().map(n -> n.get("type")).toList();
+                } else {
+                    type = child.get("type");
+                }
+            }
 
             node.put("type", "*");
 
@@ -266,16 +253,10 @@ public class Analysis implements JmmAnalysis {
                 error(node, "Cannot call method '" + method + "' on expression of type '" + type + "'");
 
             if (table.getClassName().equals(type)) {
-                if (!table.getMethods().contains(method)) {
-                    error(node, "Cannot call method '" + method + "' on expression of type '" + type + "'");
-                } else {
+                if (table.getMethods().contains(method)) {
                     var expected = table.getParameters(method).stream().map(s -> s.getType().print()).toList();
-                    List<String> actual = new ArrayList<>();
 
                     node.put("type", table.getReturnType(method).print());
-
-                    if (node.getNumChildren() > 1)
-                        actual = node.getJmmChild(1).getChildren().stream().map(n -> n.get("type")).toList();
 
                     if (expected.size() != actual.size())
                         error(node, "Cannot call '" + type + "::" + method + "' with " + actual.size() + " arguments, expected " + expected.size());
@@ -283,6 +264,8 @@ public class Analysis implements JmmAnalysis {
                     for (int i = 0; i < Math.min(expected.size(), actual.size()); ++i)
                         if (!typesMatch(expected.get(i), actual.get(i)))
                             error(node, "Cannot call '" + type + "::" + method + "' with " + (i + 1) + "th argument of type '" + actual.get(i) + "', expected '" + expected.get(i) + "'");
+                } else if (table.getSuper() == null) {
+                    error(node, "Cannot call method '" + method + "' on expression of type '" + type + "'");
                 }
             }
 
@@ -292,6 +275,30 @@ public class Analysis implements JmmAnalysis {
         protected String checkNewObject(JmmNode node, String context) {
             var id = node.get("id");
             node.put("type", id);
+
+            return context;
+        }
+
+        protected String checkModifiers(JmmNode node, String context) {
+            var modifiers = (List<String>) node.getObject("modifiers");
+            Set<String> used = new TreeSet<>();
+            var allowed = switch (node.getKind()) {
+                case "ClassDeclaration" -> CLASS_MODIFIERS;
+                case "MethodDeclaration" -> METHOD_MODIFIERS;
+                case "ConstructorDeclaration" -> CONSTRUCTOR_MODIFIERS;
+                case "FieldDeclaration" -> FIELD_MODIFIERS;
+                default -> new String[]{};
+            };
+
+            for (String modifier : modifiers) {
+                if (used.contains(modifier))
+                    error(node, "Duplicated modifier '" + modifier + "'");
+
+                used.add(modifier);
+
+                if (!in(allowed, modifier))
+                    error(node, "Cannot use modifier '" + modifier + "' here");
+            }
 
             return context;
         }
@@ -321,7 +328,12 @@ public class Analysis implements JmmAnalysis {
         }
 
         private void error(JmmNode node, String message) {
-            reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, message));
+            reports.add(new Report(
+                    ReportType.ERROR,
+                    Stage.SEMANTIC,
+                    Integer.parseInt(node.get("lineStart")),
+                    Integer.parseInt(node.get("colStart")),
+                    message));
         }
     }
 }

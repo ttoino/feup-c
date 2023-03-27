@@ -54,7 +54,7 @@ public class Launcher {
 
         // Check if there are semantic errors
         for (Report report : semanticsResult.getReports())
-            System.err.println(report.getMessage());
+            System.err.println(report.getLine() + ":" + report.getColumn() + " " + report.getMessage());
 
         if (!semanticsResult.getReports().isEmpty())
             return;

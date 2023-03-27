@@ -1,5 +1,6 @@
 package pt.up.fe.comp2023;
 
+import org.antlr.runtime.tree.Tree;
 import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
@@ -46,6 +47,10 @@ public class JmmSymbolTable implements SymbolTable {
 
     public boolean hasMainMethod() {
         return hasMainMethod;
+    }
+
+    public Method getMethod(String s) {
+        return methods.stream().filter(m -> m.getName().equals(s)).findFirst().orElse(null);
     }
 
     @Override
@@ -141,6 +146,8 @@ public class JmmSymbolTable implements SymbolTable {
             var method = new Method(node.get("methodName"));
 
             methods.add(method);
+
+            method.setModifiers(new TreeSet<>((List<String>) node.getObject("modifiers")));
 
             if (method.getName().equals("main"))
                 hasMainMethod = true;
