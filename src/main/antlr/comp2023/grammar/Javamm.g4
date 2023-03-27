@@ -64,7 +64,7 @@ CONST : 'const' ;
 GOTO : 'goto' ;
 
 // Primitive Types
-PRIMITIVE_TYPE : ( BOOLEAN_TYPE | BYTE_TYPE | CHAR_TYPE | DOUBLE_TYPE | FLOAT_TYPE | INTEGER_TYPE | LONG_TYPE ) ;
+PRIMITIVE_TYPE : ( BOOLEAN_TYPE | BYTE_TYPE | CHAR_TYPE | DOUBLE_TYPE | FLOAT_TYPE | INTEGER_TYPE | LONG_TYPE | SHORT_TYPE ) ;
 BOOLEAN_TYPE : 'boolean' ;
 BYTE_TYPE : 'byte' ;
 CHAR_TYPE : 'char' ;
@@ -72,6 +72,7 @@ DOUBLE_TYPE : 'double' ;
 FLOAT_TYPE : 'float' ;
 INTEGER_TYPE : 'int' ;
 LONG_TYPE : 'long' ;
+SHORT_TYPE : 'short' ;
 
 // literals should have priority in their interpretation
 LITERAL: ( NULL_LITERAL | NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL ) ;
@@ -147,6 +148,7 @@ statement
     | CONTINUE SC #ContinueStatement
     | expression SC #ExpressionStatement
     | variable_declaration SC #AssignmentStatement
+    | SC #EmptyStatement
     ;
 
 case_statement

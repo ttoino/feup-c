@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import pt.up.fe.comp.TestUtils;
+import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
 import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.specs.util.SpecsIo;
@@ -44,14 +45,22 @@ public class Launcher {
             return;
         }
 
-        JmmSymbolTable symbolTable = new JmmSymbolTable(parserResult.getRootNode());
-
-        System.out.println("Symbol Table:");
-        System.out.println(symbolTable.print());
-
         // ... add remaining stages
         System.out.println("\n====================================== AST =====================================\n");
         System.out.println(parserResult.getRootNode().toTree());
+
+        Analysis analysis = new Analysis();
+        JmmSemanticsResult semanticsResult = analysis.semanticAnalysis(parserResult);
+
+        // Check if there are semantic errors
+        for (Report report : semanticsResult.getReports())
+            System.err.println(report.getMessage());
+
+        if (!semanticsResult.getReports().isEmpty())
+            return;
+
+        System.out.println("\n================================= SYMBOL TABLE =================================\n");
+        System.out.println(semanticsResult.getSymbolTable().print());
     }
 
     private static Map<String, String> parseArgs(String[] args) {

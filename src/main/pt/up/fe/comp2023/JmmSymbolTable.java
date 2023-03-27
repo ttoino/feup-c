@@ -60,17 +60,17 @@ public class JmmSymbolTable implements SymbolTable {
 
     @Override
     public Type getReturnType(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getReturnType();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getReturnType).orElse(null);
     }
 
     @Override
     public List<Symbol> getParameters(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getParameters();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getParameters).orElse(null);
     }
 
     @Override
     public List<Symbol> getLocalVariables(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getLocalVariables();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getLocalVariables).orElse(null);
     }
 
     private class Visitor extends AJmmVisitor<Object, Object> {
