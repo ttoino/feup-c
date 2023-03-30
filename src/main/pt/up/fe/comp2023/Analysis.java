@@ -68,10 +68,20 @@ public class Analysis implements JmmAnalysis {
             addVisit("PropertyAccess", this::checkPropertyAccess);
             addVisit("MethodCall", this::checkMethodCall);
             addVisit("NewObject", this::checkNewObject);
+            addVisit("NewArray", this::checkNewArray);
             addVisit("ClassDeclaration", this::checkModifiers);
             addVisit("MethodDeclaration", this::checkModifiers);
             addVisit("ConstructorDeclaration", this::checkModifiers);
             addVisit("FieldDeclaration", this::checkModifiers);
+            addVisit("ReturnStatement", this::checkReturn);
+            addVisit("BreakStatement", this::checkBreak);
+            addVisit("ContinueStatement", this::checkContinue);
+            addVisit("IfStatement", this::checkIf);
+            addVisit("WhileStatement", this::checkWhile);
+            addVisit("DoStatement", this::checkDo);
+            addVisit("ForStatement", this::checkFor);
+            addVisit("ForEachStatement", this::checkForEach);
+            addVisit("SwitchStatement", this::checkSwitch);
         }
 
         @Override
@@ -161,6 +171,8 @@ public class Analysis implements JmmAnalysis {
                 error(node, "Cannot use '" + op + "' on expressions of type '" + type1 + "' and '" + type2 + "'");
 
             node.put("type", type1);
+            if (in(COMPARISON_OPS, op))
+                node.put("type", "boolean");
 
             return context;
         }
@@ -291,6 +303,18 @@ public class Analysis implements JmmAnalysis {
             return context;
         }
 
+        protected String checkNewArray(JmmNode node, String context) {
+            var type = node.getJmmChild(0).get("type");
+            var index = node.getJmmChild(1).get("type");
+
+            node.put("type", type + "[]");
+
+            if (index.equals("int"))
+                error(node, "Cannot create new array with expression of type '" + index + "' as length");
+
+            return context;
+        }
+
         protected String checkModifiers(JmmNode node, String context) {
             var modifiers = node.getObjectAsList("modifiers", String.class);
             Set<String> used = new TreeSet<>();
@@ -315,6 +339,88 @@ public class Analysis implements JmmAnalysis {
             return context;
         }
 
+        protected String checkReturn(JmmNode node, String context) {
+            var returnType = table.getReturnType(context).print();
+            var type = "void";
+
+            if (node.getNumChildren() > 0)
+                type = node.getJmmChild(0).get("type");
+
+            if (!typesMatch(returnType, type))
+                error(node, "Cannot return expression of type '" + type + "' in method with return type '" + returnType + "'");
+
+            return context;
+        }
+
+        protected String checkBreak(JmmNode node, String context) {
+            if (node.getAncestor("ForStatement")
+                    .or(() -> node.getAncestor("ForEachStatement"))
+                    .or(() -> node.getAncestor("WhileStatement"))
+                    .or(() -> node.getAncestor("DoStatement"))
+                    .or(() -> node.getAncestor("SwitchStatement")).isEmpty())
+                error(node, "Cannot have a break statement outside a loop or switch statement");
+
+            return context;
+        }
+
+        protected String checkContinue(JmmNode node, String context) {
+            if (node.getAncestor("ForStatement")
+                    .or(() -> node.getAncestor("ForEachStatement"))
+                    .or(() -> node.getAncestor("WhileStatement"))
+                    .or(() -> node.getAncestor("DoStatement")).isEmpty())
+                error(node, "Cannot have a continue statement outside a loop");
+
+            return context;
+        }
+
+        protected String checkIf(JmmNode node, String context) {
+            var type = node.getJmmChild(0).get("type");
+            if (!type.equals("boolean"))
+                error(node, "Cannot use expression of type '" + type + "' inside if statement");
+
+            return context;
+        }
+
+        protected String checkWhile(JmmNode node, String context) {
+            var type = node.getJmmChild(0).get("type");
+            if (!type.equals("boolean"))
+                error(node, "Cannot use expression of type '" + type + "' inside while statement");
+
+            return context;
+        }
+
+        protected String checkDo(JmmNode node, String context) {
+            var type = node.getJmmChild(1).get("type");
+            if (!type.equals("boolean"))
+                error(node, "Cannot use expression of type '" + type + "' inside do statement");
+
+            return context;
+        }
+
+        protected String checkFor(JmmNode node, String context) {
+            // var type = node.getJmmChild(0).get("type");
+            // if (!type.equals("boolean"))
+            //     error(node, "Cannot use expression of type '" + type + "' inside if statement");
+
+            return context;
+        }
+
+        protected String checkForEach(JmmNode node, String context) {
+            // var type = node.getJmmChild(0).get("type");
+            // if (!type.equals("boolean"))
+            //     error(node, "Cannot use expression of type '" + type + "' inside if statement");
+
+            return context;
+        }
+
+        protected String checkSwitch(JmmNode node, String context) {
+            var type = node.getJmmChild(0).get("type");
+            if (!in(PRIMITIVE_TYPES, type) && !type.equals("String"))
+                error(node, "Cannot use expression of type '" + type + "' inside switch statement");
+
+            return context;
+        }
+
         /**
          * @return `true` if `type1` matches `type2`
          */
@@ -327,8 +433,10 @@ public class Analysis implements JmmAnalysis {
                     || in(FLOAT_TYPES, type1) && in(FLOAT_TYPES, type2)
                     // First is Object and second is not primitive
                     || type1.equals("Object") && !in(PRIMITIVE_TYPES, type2)
+                    // Both are imported
+                    || table.getImports().containsAll(List.of(type1, type2))
                     // First is superclass of second
-                    || table.getSuper().equals(type1) && table.getClassName().equals(type2)
+                    || table.getSuper() != null && table.getSuper().equals(type1) && table.getClassName().equals(type2)
                     // Both equal
                     || type1.equals(type2);
         }

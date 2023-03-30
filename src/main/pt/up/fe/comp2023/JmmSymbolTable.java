@@ -184,6 +184,8 @@ public class JmmSymbolTable implements SymbolTable {
 
             if (context instanceof Method) ((Method) context).setReturnType(type);
 
+            node.put("type", type.print());
+
             return type;
         }
 

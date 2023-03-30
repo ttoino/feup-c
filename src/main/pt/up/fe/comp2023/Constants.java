@@ -29,6 +29,10 @@ public final class Constants {
             "=", "==", "!="
     };
 
+    public static final String[] COMPARISON_OPS = {
+            "==", "!=", "<", ">", "<=", ">="
+    };
+
     public static final String[] UNIVERSAL_IMPORTS = {
             "System", "String"
     };
