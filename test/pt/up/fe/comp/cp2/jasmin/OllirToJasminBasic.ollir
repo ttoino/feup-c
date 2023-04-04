@@ -17,7 +17,7 @@ SymbolTable extends Quicksort {
 		ret.i32 0.i32;
 	}
 
-	.method public method2(boolParam1.bool).bool {
+	.method public method2(intParam1.i32, boolParam1.bool).bool {
 		ret.bool boolParam1.bool;
 	}
 

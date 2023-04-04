@@ -3,12 +3,11 @@ package pt.up.fe.comp.cp2;
 import org.junit.Test;
 import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
+import pt.up.fe.specs.util.SpecsCheck;
 import pt.up.fe.specs.util.SpecsIo;
+import utils.ProjectTestUtils;
 
-import java.io.File;
 import java.util.Collections;
-
-import static org.junit.Assert.assertEquals;
 
 public class JasminTest {
 
@@ -33,8 +32,18 @@ public class JasminTest {
     }
 
     public static void testOllirToJasmin(String resource, String expectedOutput) {
-        // If AstToJasmin pipeline, do not execute test
+        SpecsCheck.checkArgument(resource.endsWith(".ollir"), () -> "Expected resource to end with .ollir: " + resource);
+
+        // If AstToJasmin pipeline, change name of the resource and execute other test
         if (TestUtils.hasAstToJasminClass()) {
+
+            // Rename resource
+            var jmmResource = SpecsIo.removeExtension(resource) + ".jmm";
+
+            // Test Jmm resource
+            var result = TestUtils.backend(SpecsIo.getResource(jmmResource));
+            ProjectTestUtils.runJasmin(result, expectedOutput);
+
             return;
         }
 
@@ -42,15 +51,7 @@ public class JasminTest {
 
         var result = TestUtils.backend(ollirResult);
 
-        var testName = new File(resource).getName();
-        System.out.println(testName + ":\n" + result.getJasminCode());
-        var runOutput = result.runWithFullOutput();
-        assertEquals("Error while running compiled Jasmin: " + runOutput.getOutput(), 0, runOutput.getReturnValue());
-        System.out.println("\n Result: " + runOutput.getOutput());
-
-        if (expectedOutput != null) {
-            assertEquals(expectedOutput, runOutput.getOutput());
-        }
+        ProjectTestUtils.runJasmin(result, null);
     }
 
     public static void testOllirToJasmin(String resource) {

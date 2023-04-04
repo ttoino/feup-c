@@ -39,22 +39,9 @@ public class OllirTest {
 
     public static void testJmmCompilation(String resource, Consumer<ClassUnit> ollirTester, String executionOutput) {
 
-        // If AstToJasmin pipeline, generate Jasmin
+        // If AstToJasmin pipeline, do not execute test
         if (TestUtils.hasAstToJasminClass()) {
-
-            var result = TestUtils.backend(SpecsIo.getResource(resource));
-
-            var testName = new File(resource).getName();
-            System.out.println(testName + ":\n" + result.getJasminCode());
-            var runOutput = result.runWithFullOutput();
-            assertEquals("Error while running compiled Jasmin: " + runOutput.getOutput(), 0,
-                    runOutput.getReturnValue());
-            System.out.println("\n Result: " + runOutput.getOutput());
-
-            if (executionOutput != null) {
-                assertEquals(executionOutput, runOutput.getOutput());
-            }
-
+            System.out.println("Not executing test for resource '"+resource+"' since it is an OLLIR test and an AstToJasmin stage was detected");
             return;
         }
 
