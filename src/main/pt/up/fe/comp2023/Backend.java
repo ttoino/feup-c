@@ -1,17 +1,15 @@
 package pt.up.fe.comp2023;
 
-import org.specs.comp.ollir.*;
 import org.specs.comp.ollir.Method;
+import org.specs.comp.ollir.*;
 import pt.up.fe.comp.jmm.jasmin.JasminBackend;
 import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.StringJoiner;
 
 public class Backend implements JasminBackend {
 
@@ -49,17 +47,22 @@ public class Backend implements JasminBackend {
 
         var className = ollirClass.getClassName();
 
-        if (!fileName.equals(className.concat(".jmm"))) {
-            reports.add(Report.newError(
-                    Stage.GENERATION,
-                    -1,
-                    -1,
-                    "Top level classes should have the same name as the file they are defined in",
-                    new Exception("Top level classes should have the same name as the file they are defined in")));
-            return "";
+        if (className == null) return "";
+
+        if (fileName != null) {
+            if (!fileName.equals(className.concat(".jmm"))) {
+                reports.add(Report.newError(
+                        Stage.GENERATION,
+                        -1,
+                        -1,
+                        "Top level classes should have the same name as the file they are defined in",
+                        new Exception("Top level classes should have the same name as the file they are defined in")));
+                return "";
+            }
+
+            sb.append(".source ").append(fileName).append('\n');
         }
 
-        sb.append(".source ").append(fileName).append('\n');
         sb.append(".class ");
 
         var classAccessModifier = ollirClass.getClassAccessModifier();
@@ -71,15 +74,18 @@ public class Backend implements JasminBackend {
         // TODO: package
 
         sb
-            .append(' ')
-            .append(className)
-            .append('\n');
+                .append(' ')
+                .append(className)
+                .append('\n');
 
         var superName = Optional.ofNullable(ollirClass.getSuperClass()).orElse("java.lang.Object");
         sb
-            .append(".super ")
-            .append(superName.replaceAll("\\.", "/"))
-            .append("\n\n");
+                .append(".super ")
+                .append(superName.replaceAll("\\.", "/"))
+                .append("\n\n");
+
+        for (Field field : ollirClass.getFields())
+            sb.append(this.buildJasminField(field, reports)).append('\n');
 
         for (Method method : ollirClass.getMethods())
             sb.append(this.buildJasminMethod(method, reports)).append('\n');
@@ -90,22 +96,22 @@ public class Backend implements JasminBackend {
     private String buildJasminMethod(Method method, List<Report> reports) {
 
         // FIXME: should this be placed in a different function ?
-        if(method.isConstructMethod()) {
+        if (method.isConstructMethod()) {
             if (method.isStaticMethod()) { // constructor cannot be static
                 reports.add(Report.newError(
-                    Stage.GENERATION,
-                    -1,
-                    -1,
-                    "Cannot generate static constructor",
-                    new Exception("Cannot generate static constructor")));
+                        Stage.GENERATION,
+                        -1,
+                        -1,
+                        "Cannot generate static constructor",
+                        new Exception("Cannot generate static constructor")));
                 return "";
             } else if (method.isFinalMethod()) {
                 reports.add(Report.newError(
-                    Stage.GENERATION,
-                    -1,
-                    -1,
-                    "Cannot generate static constructor",
-                    new Exception("Cannot generate final constructor")));
+                        Stage.GENERATION,
+                        -1,
+                        -1,
+                        "Cannot generate final constructor",
+                        new Exception("Cannot generate final constructor")));
                 return "";
             }
         }
@@ -114,9 +120,9 @@ public class Backend implements JasminBackend {
 
         var accessModifier = method.getMethodAccessModifier();
         sb.append(
-            accessModifier == AccessModifiers.DEFAULT
-                ? ""
-                : accessModifier.name().toLowerCase().concat(" "));
+                accessModifier == AccessModifiers.DEFAULT
+                        ? ""
+                        : accessModifier.name().toLowerCase().concat(" "));
 
         if (method.isStaticMethod())
             sb.append("static ");
@@ -130,7 +136,10 @@ public class Backend implements JasminBackend {
             sb.append(method.getMethodName());
 
         sb.append('(');
-        // TODO: handle params
+
+        for (var param : method.getParams())
+            sb.append(this.buildJasminType(param.getType(), reports));
+
         sb.append(")");
 
         var methodReturnType = method.getReturnType();
@@ -144,11 +153,14 @@ public class Backend implements JasminBackend {
         sb.append('\n');
 
         // TODO: handle tabs
-        // add function code here
+
+        for (Instruction instruction : method.getInstructions())
+            sb.append(this.buildJasminInstruction(instruction, reports)).append('\n');
 
         sb.append("\treturn");
         if (!method.isConstructMethod() && !isVoid) {
             // TODO: handle return value
+
         }
         sb.append('\n');
 
@@ -157,19 +169,79 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
+    private String buildJasminField(Field field, List<Report> reports) {
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(".field ");
+
+        var accessModifier = field.getFieldAccessModifier();
+        sb.append(
+                accessModifier == AccessModifiers.DEFAULT
+                        ? ""
+                        : accessModifier.name().toLowerCase().concat(" "));
+
+        if (field.isFinalField())
+            sb.append("static ");
+
+        if (field.isFinalField())
+            sb.append("final ");
+
+        sb.append(field.getFieldName()).append(' ');
+
+        sb.append(this.buildJasminType(field.getFieldType(), reports));
+
+        if (field.isInitialized())
+            sb.append(" = ").append(field.getInitialValue());
+
+        return sb.toString();
+    }
+
+    private String buildJasminInstruction(Instruction instruction, List<Report> reports) {
+        // TODO:
+        return "";
+    }
+
     private String buildJasminType(Type type, List<Report> reports) {
         var typeDescriptor = "";
+
         switch (type.getTypeOfElement()) {
-            case INT32: typeDescriptor = "I"; break;
-            case BOOLEAN: typeDescriptor = "Z"; break;
-            case ARRAYREF: typeDescriptor = "L"; break;
-            case OBJECTREF: typeDescriptor = "L"; break;
-            case CLASS: typeDescriptor = "L"; break;
-            case THIS: typeDescriptor = "null"; break;
-            case STRING: typeDescriptor = "Ljava/lang/String;"; break;
-            case VOID: typeDescriptor = "V"; break;
-        };
+            case ARRAYREF:
+                typeDescriptor = this.buildJasminArrayType((ArrayType) type, reports);
+                break;
+            case OBJECTREF:
+            case CLASS:
+                // what's the difference?
+
+                typeDescriptor = this.buildJasminClassType((ClassType) type, reports);
+                break;
+            case INT32:
+                typeDescriptor = "I";
+                break;
+            case BOOLEAN:
+                typeDescriptor = "Z";
+                break;
+            case THIS:
+                // ??
+                typeDescriptor = "this";
+                break;
+            case STRING:
+                typeDescriptor = "Ljava/lang/String;";
+                break;
+            case VOID:
+                typeDescriptor = "V";
+                break;
+        }
 
         return typeDescriptor;
+    }
+
+    private String buildJasminArrayType(ArrayType type, List<Report> reports) {
+        return "[".repeat(Math.max(0, type.getNumDimensions())) +
+                this.buildJasminType(type.getElementType(), reports);
+    }
+
+    private String buildJasminClassType(ClassType type, List<Report> reports) {
+        return "L" + type.getName() + ";";
     }
 }

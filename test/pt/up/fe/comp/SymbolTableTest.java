@@ -59,8 +59,8 @@ public class SymbolTableTest {
     		case "boolean": checkBool++; break;
     		case "int": checkInt++;break;
     		}
-    	};
-    	assertEquals("Field of type int", 1, checkInt);
+    	}
+        assertEquals("Field of type int", 1, checkInt);
     	assertEquals("Field of type boolean", 1, checkBool);
     	assertEquals("Field of type object", 1, checkObj);
 
@@ -100,8 +100,8 @@ public class SymbolTableTest {
 	    			break;
 	    			
     		}
-    	};
-    	assertEquals("Method with return type int", 1, checkInt);
+    	}
+        assertEquals("Method with return type int", 1, checkInt);
     	assertEquals("Method with return type boolean", 1, checkBool);
     	assertEquals("Method with return type object", 1, checkObj);
     	assertEquals("Method with three arguments", 1, checkAll);

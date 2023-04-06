@@ -68,23 +68,49 @@ public class Launcher {
         OllirResult result = new OllirResult(
                 """
                         myClass {
-                        \t.construct myClass().V{
+                        \t.field private a.i32;
+                        \t
+                        \t.construct myClass(n.i32).V {
+                        \t\tinvokespecial(this, "<init>").V;
+                        \t\tputfield(this, a.i32, $1.n.i32).V;
+                        \t}
+                        \t
+                        \t.construct myClass().V {
                         \t\tinvokespecial(this, "<init>").V;
                         \t}
                         \t
-                        \t.method public sum(A.array.i32).i32 {
-                        \t\tsum.i32 :=.i32 0.i32;
-                        \t\ti.i32 :=.i32 0.i32;
+                        \t.method public get().i32 {\s
+                        \t\tt1.i32 :=.i32 getfield(this, a.i32).i32;
+                        \t\tret.i32 t1.i32;
+                        \t}
+                        \t
+                        \t.method public put(n.i32).V {
+                        \t\tputfield(this, a.i32, $1.n.i32).V;
+                        \t}
+                        \t
+                        \t.method public m1().V {
+                        \t\tputfield(this, a.i32, 2.i32).V;  // this.a = 2;
                         \t\t
-                        \t\tLoop:
-                        \t\t\tt1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                        \t\t\tif (i.i32 >=.bool t1.i32) goto End;
-                        \t\t\tt2.i32 :=.i32 $1.A[i.i32].i32;
-                        \t\t\tsum.i32 :=.i32 sum.i32 +.i32 t2.i32;
-                        \t\t\ti.i32 :=.i32 i.i32 +.i32 1.i32;
-                        \t\t\tgoto Loop;
-                        \t\tEnd:
-                        \t\t\tret.i32 sum.i32;
+                        \t\tt2.String :=.String ldc("val = ").String;
+                        \t\tt1.i32 :=.i32 invokevirtual(this,"get").i32;
+                        \t\tinvokestatic(io, "println", t2.String, t1.i32).V;  //io.println("val = ", this.get());
+                        \t\t
+                        \t\tc1.myClass :=.myClass new(myClass,3.i32).myClass;
+                        \t\tinvokespecial(c1.myClass,"<init>").V;  // myClass c1 = new myClass(3);
+                        \t\t
+                        \t\tt3.i32 :=.i32 invokevirtual(c1.myClass, "get").i32;
+                        \t\tinvokestatic(io, "println", t2.String, t3.i32).V; // io.println("val = ", c1.get());
+                        \t\t
+                        \t\tinvokevirtual(c1.myClass, "put", 2.i32).V;  // c1.put(2);
+                        \t\t
+                        \t\tt4.i32 :=.i32 invokevirtual(c1.myClass, "get").i32;
+                        \t\tinvokestatic(io, "println", t2.String, t4.i32).V; //io.println("val = ", c1.get());
+                        \t}
+                        \t
+                        \t.method public static main(args.array.myClass).V {
+                        \t\tA.myClass :=.myClass new(myClass).myClass;
+                        \t\tinvokespecial(A.myClass,"<init>").V;
+                        \t\tinvokevirtual(A.myClass,"m1").V;
                         \t}
                         }""", config);
 
