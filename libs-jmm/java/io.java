@@ -32,7 +32,7 @@ public class io {
 						//System.out.println("valor lido: "+value);
 
 						if(!init) {
-							Buffer.addElement(new Integer(value));
+							Buffer.addElement(Integer.valueOf(value));
 						} else {
 							a = value;
 							init = false;
@@ -76,6 +76,10 @@ public class io {
 		System.out.print(a);
 	}
 
+    final static void print(boolean a) {
+		System.out.print(a);
+	}
+
 	final static void println() {
 		System.out.println();
 	}
@@ -89,6 +93,10 @@ public class io {
 	}
 
 	final static void println(String a) {
+		System.out.println(a);
+	}
+
+	final static void println(boolean a) {
 		System.out.println(a);
 	}	
 }
