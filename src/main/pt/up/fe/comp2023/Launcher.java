@@ -46,11 +46,11 @@ public class Launcher {
         }
 
         // ... add remaining stages
-        System.out.println("\n====================================== AST =====================================\n");
-        System.out.println(parserResult.getRootNode().toTree());
-
         Analysis analysis = new Analysis();
         JmmSemanticsResult semanticsResult = analysis.semanticAnalysis(parserResult);
+
+        System.out.println("\n====================================== AST =====================================\n");
+        System.out.println(semanticsResult.getRootNode().toTree());
 
         // Check if there are semantic errors
         for (Report report : semanticsResult.getReports())

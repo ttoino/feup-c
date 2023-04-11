@@ -222,7 +222,7 @@ public class Analysis implements JmmAnalysis {
             if (!in(INTEGER_TYPES, type2))
                 error(node, "Cannot use expression of type '" + type2 + "' as index");
 
-            node.put("type", type1.substring(0, type2.length() - 2));
+            node.put("type", type1.substring(0, type1.length() - 2));
             node.put("canAssign", "true");
 
             return context;
