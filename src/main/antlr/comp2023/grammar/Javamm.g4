@@ -64,7 +64,7 @@ CONST : 'const' ;
 GOTO : 'goto' ;
 
 // Primitive Types
-PRIMITIVE_TYPE : ( BOOLEAN_TYPE | BYTE_TYPE | CHAR_TYPE | DOUBLE_TYPE | FLOAT_TYPE | INTEGER_TYPE | LONG_TYPE ) ;
+PRIMITIVE_TYPE : ( BOOLEAN_TYPE | BYTE_TYPE | CHAR_TYPE | DOUBLE_TYPE | FLOAT_TYPE | INTEGER_TYPE | LONG_TYPE | SHORT_TYPE ) ;
 BOOLEAN_TYPE : 'boolean' ;
 BYTE_TYPE : 'byte' ;
 CHAR_TYPE : 'char' ;
@@ -72,6 +72,7 @@ DOUBLE_TYPE : 'double' ;
 FLOAT_TYPE : 'float' ;
 INTEGER_TYPE : 'int' ;
 LONG_TYPE : 'long' ;
+SHORT_TYPE : 'short' ;
 
 // literals should have priority in their interpretation
 LITERAL: ( NULL_LITERAL | NUMBER_LITERAL | BOOLEAN_LITERAL | CHAR_LITERAL | STRING_LITERAL ) ;
@@ -119,14 +120,14 @@ package_declaration : PACKAGE ( packagePath+=ID DOT )* packageName=ID #PackageDe
 
 import_statement : IMPORT ( classPackage+=ID DOT )* className=ID SC #ImportStatement ;
 
-class_declaration : classModifiers+=MODIFIER* CLASS className=ID class_extension? LB program_definition RB #ClassDeclaration ;
+class_declaration : modifiers+=MODIFIER* CLASS className=ID class_extension? LB program_definition RB #ClassDeclaration ;
 
 class_extension : EXTENDS ( parentPackage+=ID DOT )* parentClass=ID #ParentClass ;
 
 program_definition : ( ( variable_declaration SC ) | method_declaration | constructor_declaration )* ;
 
 method_declaration: (modifiers+=MODIFIER)* type methodName=ID LP parameter_list? RP LB statement* RB #MethodDeclaration ;
-variable_declaration: (modifiers+=MODIFIER)* assignment_statement ;
+variable_declaration: (modifiers+=MODIFIER)* assignment_statement #FieldDeclaration;
 constructor_declaration: (modifiers+=MODIFIER)* className=ID LP parameter_list? RP LB statement* RB #ConstructorDeclaration;
 
 parameter_list : type argName+=ID ( COMMA type argName+=ID )* #ParameterList ;
@@ -147,6 +148,7 @@ statement
     | CONTINUE SC #ContinueStatement
     | expression SC #ExpressionStatement
     | variable_declaration SC #AssignmentStatement
+    | SC #EmptyStatement
     ;
 
 case_statement
@@ -166,6 +168,7 @@ expression
     | NEW id=ID LP argument_list? RP #NewObject
     | NEW type LSB expression RSB #NewArray
     | expression DOT member=ID LP argument_list? RP #MethodCall
+    | member=ID LP argument_list? RP #MethodCall
     | expression DOT member=ID #PropertyAccess
     | expression LSB expression RSB #ArrayAccess
     | expression op=('++' | '--') #UnaryPostOp

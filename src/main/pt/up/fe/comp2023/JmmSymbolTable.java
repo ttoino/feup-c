@@ -1,5 +1,6 @@
 package pt.up.fe.comp2023;
 
+import org.antlr.runtime.tree.Tree;
 import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
@@ -48,6 +49,10 @@ public class JmmSymbolTable implements SymbolTable {
         return hasMainMethod;
     }
 
+    public Method getMethod(String s) {
+        return methods.stream().filter(m -> m.getName().equals(s)).findFirst().orElse(null);
+    }
+
     @Override
     public List<Symbol> getFields() {
         return fields;
@@ -60,17 +65,17 @@ public class JmmSymbolTable implements SymbolTable {
 
     @Override
     public Type getReturnType(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getReturnType();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getReturnType).orElse(null);
     }
 
     @Override
     public List<Symbol> getParameters(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getParameters();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getParameters).orElse(null);
     }
 
     @Override
     public List<Symbol> getLocalVariables(String s) {
-        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().get().getLocalVariables();
+        return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getLocalVariables).orElse(null);
     }
 
     private class Visitor extends AJmmVisitor<Object, Object> {
@@ -123,15 +128,14 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Object visitPackage(JmmNode node, Object context) {
-            packageName = ((ArrayList<String>) node.getObject("packagePath")).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
+            packageName = node.getObjectAsList("packagePath", String.class).stream().map(s -> s + '.').collect(Collectors.joining()) + node.get("packageName");
 
             return context;
         }
 
         private Object visitImport(JmmNode node, Object context) {
             imports.add(
-                    ((ArrayList<Object>) node.getOptionalObject("packages").orElse(new ArrayList<>()))
-                            .stream().map(s -> s.toString() + ".").collect(Collectors.joining())
+                    String.join("", ((ArrayList<String>) node.getOptionalObject("packages").orElse(new ArrayList<>())))
                             + node.get("className"));
 
             return context;
@@ -141,6 +145,8 @@ public class JmmSymbolTable implements SymbolTable {
             var method = new Method(node.get("methodName"));
 
             methods.add(method);
+
+            method.setModifiers(new TreeSet<>(node.getObjectAsList("modifiers", String.class)));
 
             if (method.getName().equals("main"))
                 hasMainMethod = true;
@@ -177,6 +183,8 @@ public class JmmSymbolTable implements SymbolTable {
                 type = new Type("void", false);
 
             if (context instanceof Method) ((Method) context).setReturnType(type);
+
+            node.put("type", type.print());
 
             return type;
         }
