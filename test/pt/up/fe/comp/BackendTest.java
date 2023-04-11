@@ -12,14 +12,11 @@ package pt.up.fe.comp;
  * specific language governing permissions and limitations under the License. under the License.
  */
 
-import static org.junit.Assert.assertEquals;
-
 import org.junit.Test;
-
-import pt.up.fe.comp.TestUtils;
-import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsStrings;
+
+import static org.junit.Assert.assertEquals;
 
 public class BackendTest {
 

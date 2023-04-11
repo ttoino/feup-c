@@ -14,8 +14,6 @@
 package pt.up.fe.comp;
 
 import org.junit.Test;
-import org.stringtemplate.v4.ST;
-import pt.up.fe.specs.util.SpecsSystem;
 
 public class TutorialTest {
 

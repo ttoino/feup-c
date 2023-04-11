@@ -6,7 +6,10 @@ import pt.up.fe.comp.jmm.analysis.table.Type;
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 public class JmmSymbolTable implements SymbolTable {
@@ -150,11 +153,9 @@ public class JmmSymbolTable implements SymbolTable {
 
             StringBuilder superNameBuilder = new StringBuilder();
 
-            var parentPackage = node.getObject("parentPackage");
+            var parentPackage = node.getObjectAsList("parentPackage", String.class);
 
-            if (parentPackage instanceof List) {
-                superNameBuilder.append(((List<String>)parentPackage).stream().map(s -> s + '.').collect(Collectors.joining()));
-            }
+            superNameBuilder.append(parentPackage.stream().map(s -> s + '.').collect(Collectors.joining()));
             superNameBuilder.append(node.get("parentClass"));
 
             superName = superNameBuilder.toString();
@@ -170,8 +171,8 @@ public class JmmSymbolTable implements SymbolTable {
 
         private Object visitImport(JmmNode node, Object context) {
             imports.add(
-                    String.join("", ((ArrayList<String>) node.getOptionalObject("packages").orElse(new ArrayList<>())))
-                            + node.get("className"));
+                    String.join("", node.getObjectAsList("classPackage", String.class)
+                            + node.get("className")));
 
             return context;
         }
@@ -203,16 +204,15 @@ public class JmmSymbolTable implements SymbolTable {
 
             if (typeId.isPresent()) {
                 var realTypeId = typeId.get(); // TODO: ew
-                var typePrefix = node.getOptionalObject("typePrefix");
 
-                if (typePrefix.isEmpty()) { // Primitive Type
-                    type = new Type(realTypeId, false);
-                } else { // Complex Type
-                    // TODO: EWWWWW
+                try { // Complex type
+                    var typePrefix = node.getObjectAsList("typePrefix", String.class);
 
-                    var actualType = ((ArrayList<String>) typePrefix.get()).stream().map(s -> s + '.').collect(Collectors.joining()) + realTypeId;
+                    var actualType = typePrefix.stream().map(s -> s + '.').collect(Collectors.joining()) + realTypeId;
 
                     type = new Type(actualType, false);
+                } catch (Exception e) { // Simple type
+                    type = new Type(realTypeId, false);
                 }
             } else if (node.getNumChildren() == 1) // Array Type
                 type = new Type(((Type) visit(node.getJmmChild(0), context)).getName(), true);
@@ -230,7 +230,7 @@ public class JmmSymbolTable implements SymbolTable {
         private List<Symbol> visitParameters(JmmNode node, Object context) {
             assert context instanceof Method;
 
-            var params = (List<Object>) node.getOptionalObject("argName").orElse(new ArrayList<>());
+            var params = node.getObjectAsList("argName");
 
             Method method = (Method) context;
             for (int i = 0; i < node.getChildren().size(); ++i) {

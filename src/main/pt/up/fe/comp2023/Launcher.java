@@ -64,52 +64,44 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
-                myClass {
-                \t.field private a.i32;
-                \t
-                \t.construct myClass(n.i32).V {
-                \t\tinvokespecial(this, "<init>").V;
-                \t\tputfield(this, a.i32, $1.n.i32).V;
-                \t}
-                \t
-                \t.construct myClass().V {
-                \t\tinvokespecial(this, "<init>").V;
-                \t}
-                \t
-                \t.method public get().i32 {\s
-                \t\tt1.i32 :=.i32 getfield(this, a.i32).i32;
-                \t\tret.i32 t1.i32;
-                \t}
-                \t
-                \t.method public put(n.i32).V {
-                \t\tputfield(this, a.i32, $1.n.i32).V;
-                \t}
-                \t
-                \t.method public m1().V {
-                \t\tputfield(this, a.i32, 2.i32).V;  // this.a = 2;
-                \t\t
-                \t\tt2.String :=.String ldc("val = ").String;
-                \t\tt1.i32 :=.i32 invokevirtual(this,"get").i32;
-                \t\tinvokestatic(io, "println", t2.String, t1.i32).V;  //io.println("val = ", this.get());
-                \t\t
-                \t\tc1.myClass :=.myClass new(myClass,3.i32).myClass;
-                \t\tinvokespecial(c1.myClass,"<init>").V;  // myClass c1 = new myClass(3);
-                \t\t
-                \t\tt3.i32 :=.i32 invokevirtual(c1.myClass, "get").i32;
-                \t\tinvokestatic(io, "println", t2.String, t3.i32).V; // io.println("val = ", c1.get());
-                \t\t
-                \t\tinvokevirtual(c1.myClass, "put", 2.i32).V;  // c1.put(2);
-                \t\t
-                \t\tt4.i32 :=.i32 invokevirtual(c1.myClass, "get").i32;
-                \t\tinvokestatic(io, "println", t2.String, t4.i32).V; //io.println("val = ", c1.get());
-                \t}
-                \t
-                \t.method public static main(args.array.myClass).V {
-                \t\tA.myClass :=.myClass new(myClass).myClass;
-                \t\tinvokespecial(A.myClass,"<init>").V;
-                \t\tinvokevirtual(A.myClass,"m1").V;
-                \t}
-                }""", config);
+                import io;
+                 Simple {
+                 .construct Simple().V {
+                 invokespecial(this, "<init>").V;
+                 }
+                 
+                 .method public add(a.i32, b.i32).i32 {
+                 temp_0.i32 :=.i32 invokevirtual(this, "constInstr").i32;
+                 c.i32 :=.i32 $1.a.i32 +.i32 temp_0.i32;
+                 ret.i32 c.i32;
+                 }
+                 
+                 .method public static main(args.array.String).V {
+                 a.i32 :=.i32 20.i32;
+                 b.i32 :=.i32 10.i32;
+                 temp_2.Simple :=.Simple new(Simple).Simple;
+                 invokespecial(temp_2.Simple,"<init>").V;
+                 s.Simple :=.Simple temp_2.Simple;
+                 temp_3.i32 :=.i32 invokevirtual(s.Simple, "add", a.i32, b.i32).i32;
+                 c.i32 :=.i32 temp_3.i32;
+                 invokestatic(io, "println", c.i32).V;
+                 ret.V;
+                 }
+                 
+                 .method public constInstr().i32 {
+                 c.i32 :=.i32 0.i32;
+                 c.i32 :=.i32 4.i32;
+                 c.i32 :=.i32 8.i32;
+                 c.i32 :=.i32 14.i32;
+                 c.i32 :=.i32 250.i32;
+                 c.i32 :=.i32 400.i32;
+                 c.i32 :=.i32 1000.i32;
+                 c.i32 :=.i32 100474650.i32;
+                 c.i32 :=.i32 10.i32;
+                 ret.i32 c.i32;
+                 }
+                 
+                 }""", config);
 
         var generatedCode = backend.toJasmin(result);
 
