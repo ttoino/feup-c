@@ -111,13 +111,15 @@ public class Analysis implements JmmAnalysis {
         protected String checkDeclared(JmmNode node, String context) {
             var id = node.get("id");
             String type = null;
+            var method = table.getMethod(context);
 
             for (var imp : table.getImports())
                 if (imp.equals(id))
                     type = id;
-            for (var field : table.getFields())
-                if (field.getName().equals(id))
-                    type = field.getType().print();
+            if (method == null || !method.getModifiers().contains("static"))
+                for (var field : table.getFields())
+                    if (field.getName().equals(id))
+                        type = field.getType().print();
             for (var parameter : table.getParametersTry(context).orElse(new ArrayList<>()))
                 if (parameter.getName().equals(id))
                     type = parameter.getType().print();
