@@ -182,7 +182,8 @@ public class JmmSymbolTable implements SymbolTable {
             else // Void Type
                 type = new Type("void", false);
 
-            if (context instanceof Method) ((Method) context).setReturnType(type);
+            if (node.getJmmParent().getKind().equals("MethodDeclaration") && context instanceof Method)
+                ((Method) context).setReturnType(type);
 
             node.put("type", type.print());
 

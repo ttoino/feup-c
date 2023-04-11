@@ -151,11 +151,13 @@ public class Analysis implements JmmAnalysis {
             var type = node.getJmmChild(0).get("type");
             var op = node.get("op");
 
-            if (!(in(INTEGER_TYPES, type) && in(INTEGER_OPS, op)
-                || in(FLOAT_TYPES, type) && in(FLOAT_OPS, op)
-                || type.equals("boolean") && in(BOOLEAN_OPS, op)
+            if (!(typesMatch(type, "int") && in(INTEGER_OPS, op)
+                || typesMatch(type, "float") && in(FLOAT_OPS, op)
+                || typesMatch(type,"boolean") && in(BOOLEAN_OPS, op)
                 || in(UNIVERSAL_OPS, op)))
                 error(node, "Cannot use '" + op + "' on expression of type '" + type + "'");
+
+            node.put("type", type);
 
             return context;
         }
@@ -165,11 +167,11 @@ public class Analysis implements JmmAnalysis {
             var type2 = node.getJmmChild(1).get("type");
             var op = node.get("op");
 
-            if (!(in(INTEGER_TYPES, type1) && in(INTEGER_TYPES, type2) && in(INTEGER_OPS, op)
-                    || in(FLOAT_TYPES, type1) && in(FLOAT_TYPES, type2) && in(FLOAT_OPS, op)
-                    || type1.equals("boolean") && type2.equals("boolean") && in(BOOLEAN_OPS, op)
-                    || type1.equals("String") && type2.equals("String") && op.equals("+")
-                    || typesMatch(type1, type2) && in(UNIVERSAL_OPS, op)))
+            if (!(typesMatch(type1, "int") && typesMatch(type2, "int") && in(INTEGER_OPS, op)
+                    || typesMatch(type1, "float") && (typesMatch(type2, "float") || typesMatch(type2, "int")) && in(FLOAT_OPS, op)
+                    || typesMatch(type1, "boolean") && typesMatch(type2, "boolean") && in(BOOLEAN_OPS, op)
+                    || typesMatch(type1, "String") && typesMatch(type2, "String") && op.equals("+")
+                    || (typesMatch(type1, type2) || typesMatch(type2, type1)) && in(UNIVERSAL_OPS, op)))
                 error(node, "Cannot use '" + op + "' on expressions of type '" + type1 + "' and '" + type2 + "'");
 
             node.put("type", type1);
@@ -184,10 +186,10 @@ public class Analysis implements JmmAnalysis {
             var type2 = node.getJmmChild(1).get("type");
             var type3 = node.getJmmChild(2).get("type");
 
-            if (!type1.equals("boolean"))
+            if (!typesMatch(type1, "boolean"))
                 error(node, "Cannot use expression of type '" + type1 + "' as ternary expression");
 
-            if (typesMatch(type1, type2))
+            if (!(typesMatch(type2, type3) || typesMatch(type3, type2)))
                 error(node, "Cannot use expressions of type '" + type2 + "' and '" + type3 + "' as ternary arms");
 
             node.put("type", type2);
@@ -232,6 +234,25 @@ public class Analysis implements JmmAnalysis {
 
         protected String checkPropertyAccess(JmmNode node, String context) {
             node.put("canAssign", "true");
+
+            var type = node.getJmmChild(0).get("type");
+            var prop = node.get("member");
+
+            if (typesMatch(type, table.getClassName())) {
+                var field = table.getFields().stream().filter(s -> s.getName().equals(prop)).findFirst();
+
+                if (field.isEmpty() && table.getSuper().isEmpty()) {
+                    error(node, "Cannot access property '" + prop + "' on object of type '" + type + "'");
+                    node.put("type", "*");
+                } else if (field.isPresent()) {
+                    node.put("type", field.get().getType().print());
+                } else {
+                    node.put("type", "*");
+                }
+            } else {
+                node.put("type", "*");
+            }
+
             return context;
         }
 
@@ -247,8 +268,8 @@ public class Analysis implements JmmAnalysis {
             var type2 = node.getJmmChild(1).get("type");
             var op = node.get("op");
 
-            if (!(in(INTEGER_TYPES, type1) && in(INTEGER_TYPES, type2) && in(INTEGER_OPS, op)
-                || in(FLOAT_TYPES, type1) && (in(FLOAT_TYPES, type2) || in(INTEGER_TYPES, type2)) && in(FLOAT_OPS, op)
+            if (!(typesMatch(type1, "int") && typesMatch(type2, "int") && in(INTEGER_OPS, op)
+                || typesMatch(type1, "float") && (typesMatch(type2, "float") || typesMatch(type2, "int")) && in(FLOAT_OPS, op)
                 || typesMatch(type1, type2) && (in(UNIVERSAL_OPS, op) || type1.equals("String") && op.equals("+="))))
                 error(node, "Cannot assign expression of type '" + type2 + "' to expression of type '" + type1 + "' with operation '" + op + "'");
 
@@ -377,7 +398,7 @@ public class Analysis implements JmmAnalysis {
 
         protected String checkIf(JmmNode node, String context) {
             var type = node.getJmmChild(0).get("type");
-            if (!type.equals("boolean"))
+            if (!typesMatch(type, "boolean"))
                 error(node, "Cannot use expression of type '" + type + "' inside if statement");
 
             return context;
@@ -385,7 +406,7 @@ public class Analysis implements JmmAnalysis {
 
         protected String checkWhile(JmmNode node, String context) {
             var type = node.getJmmChild(0).get("type");
-            if (!type.equals("boolean"))
+            if (!typesMatch(type, "boolean"))
                 error(node, "Cannot use expression of type '" + type + "' inside while statement");
 
             return context;
@@ -393,7 +414,7 @@ public class Analysis implements JmmAnalysis {
 
         protected String checkDo(JmmNode node, String context) {
             var type = node.getJmmChild(1).get("type");
-            if (!type.equals("boolean"))
+            if (!typesMatch(type, "boolean"))
                 error(node, "Cannot use expression of type '" + type + "' inside do statement");
 
             return context;

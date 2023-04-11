@@ -34,7 +34,7 @@ public final class Constants {
     };
 
     public static final String[] UNIVERSAL_IMPORTS = {
-            "System", "String"
+            "System", "String", "Integer"
     };
 
     public static final String[] CLASS_MODIFIERS = {
