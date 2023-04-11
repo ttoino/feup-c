@@ -8,6 +8,8 @@ import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
+import javax.naming.NoPermissionException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -93,6 +95,38 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
+    private String buildJasminField(Field field, List<Report> reports) {
+
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(".field ");
+
+        var accessModifier = field.getFieldAccessModifier();
+        sb.append(
+                accessModifier == AccessModifiers.DEFAULT
+                        ? ""
+                        : accessModifier.name().toLowerCase().concat(" "));
+
+        if (field.isFinalField())
+            sb.append("static ");
+
+        if (field.isFinalField())
+            sb.append("final ");
+
+        sb.append(field.getFieldName()).append(' ');
+
+        sb.append(this.buildJasminType(field.getFieldType(), reports));
+
+        if (field.isInitialized()) {
+
+            // TODO: needs better handling
+
+            sb.append(" = ").append(field.getInitialValue());
+        }
+
+        return sb.toString();
+    }
+
     private String buildJasminMethod(Method method, List<Report> reports) {
 
         // FIXME: should this be placed in a different function ?
@@ -116,7 +150,25 @@ public class Backend implements JasminBackend {
             }
         }
 
-        StringBuilder sb = new StringBuilder(".method ");
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(".method ");
+
+        sb.append(this.buildJasminMethodHeader(method, reports));
+
+        // TODO: remove when optimizing
+        sb.append("\t.limit locals 99").append('\n');
+        sb.append("\t.limit stack 99").append('\n');
+
+        sb.append(this.buildJasminMethodBody(method, reports));
+
+        sb.append(".end method\n");
+
+        return sb.toString();
+    }
+
+    private String buildJasminMethodHeader(Method method, List<Report> reports) {
+        var sb = new StringBuilder();
 
         var accessModifier = method.getMethodAccessModifier();
         sb.append(
@@ -152,54 +204,259 @@ public class Backend implements JasminBackend {
             sb.append(this.buildJasminType(methodReturnType, reports));
         sb.append('\n');
 
-        // TODO: handle tabs
+        return sb.toString();
+    }
 
-        for (Instruction instruction : method.getInstructions())
-            sb.append(this.buildJasminInstruction(instruction, reports)).append('\n');
+    private String buildJasminMethodBody(Method method, List<Report> reports) {
 
-        sb.append("\treturn");
-        if (!method.isConstructMethod() && !isVoid) {
-            // TODO: handle return value
+        var sb = new StringBuilder();
 
+        boolean hasReturn = false;
+        var varTable = method.getVarTable();
+        for (Instruction instruction : method.getInstructions()) {
+
+            if (instruction.getInstType() == InstructionType.RETURN)
+                hasReturn = true;
+
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
         }
-        sb.append('\n');
+        if (!hasReturn) { // default to have a return
 
-        sb.append(".end method\n");
 
-        return sb.toString();
-    }
+            if (!(method.isConstructMethod() || method.getReturnType().getTypeOfElement() == ElementType.VOID)) {
+                reports.add(Report.newError(
+                        Stage.GENERATION,
+                        -1,
+                        -1,
+                        "Non-void function must have a return type",
+                        new Exception("Non-void function must have a return type")));
+                return "";
+            }
 
-    private String buildJasminField(Field field, List<Report> reports) {
 
-        StringBuilder sb = new StringBuilder();
+            var instruction = new ReturnInstruction();
+            instruction.setReturnType(new Type(ElementType.VOID));
 
-        sb.append(".field ");
-
-        var accessModifier = field.getFieldAccessModifier();
-        sb.append(
-                accessModifier == AccessModifiers.DEFAULT
-                        ? ""
-                        : accessModifier.name().toLowerCase().concat(" "));
-
-        if (field.isFinalField())
-            sb.append("static ");
-
-        if (field.isFinalField())
-            sb.append("final ");
-
-        sb.append(field.getFieldName()).append(' ');
-
-        sb.append(this.buildJasminType(field.getFieldType(), reports));
-
-        if (field.isInitialized())
-            sb.append(" = ").append(field.getInitialValue());
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
+        }
 
         return sb.toString();
     }
 
-    private String buildJasminInstruction(Instruction instruction, List<Report> reports) {
-        // TODO:
-        return "";
+    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        switch (instruction.getInstType()) {
+            case ASSIGN:
+                return this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
+            case CALL:
+                return this.buildJasminCallInstruction((CallInstruction) instruction, reports);
+            case GOTO:
+                break;
+            case BRANCH:
+                break;
+            case RETURN:
+                return this.buildJasminReturnInstruction((ReturnInstruction) instruction, varTable, reports);
+            case PUTFIELD:
+                break;
+            case GETFIELD:
+                break;
+            case UNARYOPER:
+                break;
+            case BINARYOPER:
+                break;
+            case NOPER:
+                break;
+        }
+
+        return "\tnop";
+    }
+
+    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        var sb = new StringBuilder();
+
+        sb.append(this.buildJasminInstruction(instruction.getRhs(), varTable, reports)).append('\n');
+
+        Operand op = (Operand) instruction.getDest();
+
+        var descriptor = varTable.get(op.getName());
+        int regNum = descriptor.getVirtualReg();
+
+        sb.append('\t');
+        switch (instruction.getTypeOfAssign().getTypeOfElement()) {
+
+            case INT32:
+                sb.append('i');
+                break;
+            case BOOLEAN:
+                sb.append('z');
+                break;
+            case ARRAYREF:
+            case OBJECTREF:
+            case STRING:
+                sb.append('a');
+                break;
+            case CLASS:
+                // TODO: ?
+                break;
+            case THIS:
+                // TODO: error
+                break;
+            case VOID:
+                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
+                break;
+        }
+        sb.append("store");
+
+        sb.append(regNum < 4 ? '_' : ' ').append(regNum);
+
+        return sb.toString();
+    }
+
+    private String buildJasminCallInstruction(CallInstruction instruction, List<Report> reports) {
+        var sb = new StringBuilder();
+
+        switch (instruction.getInvocationType()) {
+
+            case invokevirtual: // method call on object reference
+
+                sb.append('\t').append("aload_0").append('\n');
+                sb
+                        .append('\t')
+                        .append("invokevirtual ")
+                        // FIXME: what
+                        .append("thisType").append('/').append(((LiteralElement) instruction.getSecondArg()).getLiteral().replaceAll("\"", ""))
+                        .append('(')
+                        // TODO: params
+                        .append(')')
+                        .append(this.buildJasminType(instruction.getReturnType(), reports))
+                        .append('\n');
+
+                break;
+            case invokeinterface:
+                break;
+            case invokespecial:
+                break;
+            case invokestatic:
+                break;
+            case NEW:
+                break;
+            case arraylength:
+                break;
+            case ldc:
+                break;
+        }
+
+        return sb.toString();
+    }
+
+    private String buildJasminReturnInstruction(ReturnInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        var sb = new StringBuilder();
+
+        if (instruction.hasReturnValue()) {
+
+            Operand op = (Operand) instruction.getOperand();
+
+            var descriptor = varTable.get(op.getName());
+
+            var regNum = descriptor.getVirtualReg();
+
+            sb.append("\t");
+            switch (instruction.getReturnType().getTypeOfElement()) {
+                case INT32:
+                    sb.append('i');
+                    break;
+                case BOOLEAN:
+                    sb.append('z');
+                    break;
+                case ARRAYREF:
+                case OBJECTREF:
+                case STRING:
+                case THIS:
+                    sb.append('a');
+                    break;
+                case CLASS:
+                    // TODO: ?
+                    break;
+                case VOID:
+                    reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                    break;
+            }
+            sb.append("load");
+
+            sb.append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+        }
+
+        sb.append('\t');
+        switch (instruction.getReturnType().getTypeOfElement()) {
+            case INT32:
+                sb.append('i');
+                break;
+            case BOOLEAN:
+                sb.append('z');
+                break;
+            case ARRAYREF:
+            case OBJECTREF:
+            case STRING:
+                sb.append('a');
+                break;
+            case CLASS:
+                // TODO: ?
+                break;
+            case THIS:
+                // TODO: error
+                break;
+            case VOID:
+                // Do nothing
+                break;
+        }
+        sb.append("return");
+
+        return sb.toString();
+    }
+
+    private String buildJasminSingleOpInstruction(SingleOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+        var sb = new StringBuilder();
+
+        Element elem = instruction.getSingleOperand();
+
+        if (elem.isLiteral()) {
+
+            LiteralElement literal = (LiteralElement) elem;
+
+            var value = literal.getLiteral();
+
+            switch (elem.getType().getTypeOfElement()) {
+
+                case INT32:
+                    break;
+                case BOOLEAN:
+
+                    sb.append("iconst_").append(value); // this works since true - 1 and false - 2
+
+                    break;
+                case ARRAYREF:
+                case OBJECTREF:
+                case CLASS:
+                case THIS:
+                case STRING:
+                case VOID:
+
+                    // Non literals
+
+                    break;
+            }
+
+        } else {
+
+            Operand op = (Operand) elem;
+
+            op.show();
+            sb.append("to be implemented");
+        }
+
+        return sb.toString();
     }
 
     private String buildJasminType(Type type, List<Report> reports) {
