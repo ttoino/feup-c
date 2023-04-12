@@ -82,6 +82,7 @@ public class Analysis implements JmmAnalysis {
             addVisit("ForStatement", this::checkFor);
             addVisit("ForEachStatement", this::checkForEach);
             addVisit("SwitchStatement", this::checkSwitch);
+            addVisit("ComplexType", this::checkComplexType);
         }
 
         @Override
@@ -442,6 +443,15 @@ public class Analysis implements JmmAnalysis {
             var type = node.getJmmChild(0).get("type");
             if (!in(PRIMITIVE_TYPES, type) && !type.equals("String"))
                 error(node, "Cannot use expression of type '" + type + "' inside switch statement");
+
+            return context;
+        }
+
+        protected String checkComplexType(JmmNode node, String context) {
+            var type = node.get("id");
+
+            if (!type.equals(table.getClassName()) && !in(UNIVERSAL_IMPORTS, type) && !table.getImports().contains(type))
+                error(node, "Cannot use '" + type + "' as a type without importing it");
 
             return context;
         }
