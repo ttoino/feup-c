@@ -33,8 +33,10 @@ public final class Constants {
             "==", "!=", "<", ">", "<=", ">="
     };
 
+    // Subset of java.lang
     public static final String[] UNIVERSAL_IMPORTS = {
-            "System", "String", "Integer"
+            "Boolean", "Byte", "Character", "CharSequence", "Class", "Double", "Enum", "Float", "Integer", "Long",
+            "Math", "Number", "Object", "Short", "String", "StringBuilder", "System", "Void"
     };
 
     public static final String[] CLASS_MODIFIERS = {
