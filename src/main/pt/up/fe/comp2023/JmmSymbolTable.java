@@ -87,6 +87,7 @@ public class JmmSymbolTable implements SymbolTable {
             addVisit("ClassDeclaration", this::visitClass);
             addVisit("ParentClass", this::visitParentClass);
             addVisit("MethodDeclaration", this::visitMethod);
+            addVisit("ConstructorDeclaration", this::visitMethod);
             addVisit("ParameterList", this::visitParameters);
             addVisit("VariableDeclaration", this::visitVariable);
             addVisit("PrimitiveType", this::visitType);
@@ -142,7 +143,9 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Method visitMethod(JmmNode node, Object context) {
-            var method = new Method(node.get("methodName"));
+            var method = new Method(
+                    node.getKind().equals("ConstructorDeclaration") ? "<constructor>" : node.get("methodName"),
+                    new Type("void", false));
 
             methods.add(method);
 

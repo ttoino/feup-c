@@ -86,7 +86,7 @@ public class Analysis implements JmmAnalysis {
 
         @Override
         public String visit(JmmNode jmmNode, String data) {
-            data = jmmNode.getOptional("methodName").orElse(data);
+            data = jmmNode.getOptional("methodName").orElse(jmmNode.getKind().equals("ConstructorDeclaration") ? "<constructor>" : data);
 
             for (var child : jmmNode.getChildren())
                 visit(child, data);
@@ -112,11 +112,13 @@ public class Analysis implements JmmAnalysis {
             var id = node.get("id");
             String type = null;
             var method = table.getMethod(context);
+            var isStatic = method != null && method.getModifiers().contains("static");
 
             for (var imp : table.getImports())
                 if (imp.equals(id))
                     type = id;
-            if (method == null || !method.getModifiers().contains("static"))
+            // TODO: static fields
+            if (!isStatic)
                 for (var field : table.getFields())
                     if (field.getName().equals(id))
                         type = field.getType().print();
