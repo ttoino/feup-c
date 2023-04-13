@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 public class Method {
     private String name;
@@ -78,5 +79,39 @@ public class Method {
 
     public void setModifiers(Set<String> modifiers) {
         this.modifiers = modifiers;
+    }
+
+    public String print() {
+        var builder = new StringBuilder();
+
+        builder.append("Name: ").append(name).append("; ");
+
+        if (modifiers.isEmpty()) {
+            builder.append("No modifiers; ");
+        } else {
+            builder.append("Modifiers: ");
+            builder.append(String.join(", ", modifiers));
+            builder.append("; ");
+        }
+
+        builder.append("Return type: ").append(returnType.print()).append("; ");
+
+        if (parameters.isEmpty()) {
+            builder.append("No parameters; ");
+        } else {
+            builder.append("Parameters: ");
+            builder.append(parameters.stream().map(Symbol::print).collect(Collectors.joining(", ")));
+            builder.append("; ");
+        }
+
+        if (localVariables.isEmpty()) {
+            builder.append("No local variables; ");
+        } else {
+            builder.append("Local variables: ");
+            builder.append(localVariables.stream().map(Symbol::print).collect(Collectors.joining(", ")));
+            builder.append(";");
+        }
+
+        return builder.toString();
     }
 }

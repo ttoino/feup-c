@@ -1,6 +1,5 @@
 package pt.up.fe.comp2023;
 
-import org.antlr.runtime.tree.Tree;
 import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.SymbolTable;
 import pt.up.fe.comp.jmm.analysis.table.Type;
@@ -76,6 +75,41 @@ public class JmmSymbolTable implements SymbolTable {
     @Override
     public List<Symbol> getLocalVariables(String s) {
         return methods.stream().filter(m -> Objects.equals(m.getName(), s)).findFirst().map(Method::getLocalVariables).orElse(null);
+    }
+
+    @Override
+    public String print() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("Class: ").append(className).append("\n");
+
+        String superClass = superName != null ? superName : "java.lang.Object";
+        builder.append("Super: ").append(superClass).append("\n");
+
+        if (packageName != null)
+            builder.append("Package: ").append(packageName).append("\n");
+
+        if (imports.isEmpty()) {
+            builder.append("\nNo imports\n");
+        } else {
+            builder.append("\nImports:\n");
+            imports.forEach((fullImport) -> builder.append(" - ").append(fullImport).append("\n"));
+        }
+
+        if (fields.isEmpty()) {
+            builder.append("\nNo fields\n");
+        } else {
+            builder.append("\nFields:\n");
+            fields.forEach((field) -> builder.append(" - ").append(field.print()).append("\n"));
+        }
+
+        if (methods.isEmpty()) {
+            builder.append("\nNo methods\n");
+        } else {
+            builder.append("\nMethods:\n");
+            methods.forEach((method) -> builder.append(" - ").append(method.print()).append("\n"));
+        }
+
+        return builder.toString();
     }
 
     private class Visitor extends AJmmVisitor<Object, Object> {
@@ -200,7 +234,6 @@ public class JmmSymbolTable implements SymbolTable {
 
             Method method = (Method) context;
             for (int i = 0; i < node.getChildren().size(); ++i) {
-
                 Type type = (Type) visit(node.getJmmChild(i), method.getParameters());
 
                 Symbol parameter = new Symbol(type, params.get(i).toString());

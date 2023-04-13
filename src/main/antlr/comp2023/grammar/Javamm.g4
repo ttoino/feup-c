@@ -116,7 +116,7 @@ RSB : ']' ;
 
 program: package_declaration? ( import_statement )* class_declaration EOF ;
 
-package_declaration : PACKAGE ( packagePath+=ID DOT )* packageName=ID #PackageDeclaration;
+package_declaration : PACKAGE ( packagePath+=ID DOT )* packageName=ID SC #PackageDeclaration;
 
 import_statement : IMPORT ( classPackage+=ID DOT )* className=ID SC #ImportStatement ;
 
