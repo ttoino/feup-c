@@ -71,7 +71,7 @@ public class Analysis implements JmmAnalysis {
             addVisit("NewArray", this::checkNewArray);
             addVisit("ClassDeclaration", this::checkModifiers);
             addVisit("MethodDeclaration", this::checkModifiers);
-            addVisit("ConstructorDeclaration", this::checkModifiers);
+            addVisit("ConstructorDeclaration", this::checkConstructor);
             addVisit("FieldDeclaration", this::checkModifiers);
             addVisit("ReturnStatement", this::checkReturn);
             addVisit("BreakStatement", this::checkBreak);
@@ -361,6 +361,17 @@ public class Analysis implements JmmAnalysis {
                 if (!in(allowed, modifier))
                     error(node, "Cannot use modifier '" + modifier + "' here");
             }
+
+            return context;
+        }
+
+        protected String checkConstructor(JmmNode node, String context) {
+            checkModifiers(node, context);
+
+            var className = table.getClassName();
+            var constructorName = node.get("className");
+            if (!constructorName.equals(className))
+                error(node, "Constructor for class '" + className + "' cannot be called '" + constructorName + "'");
 
             return context;
         }
