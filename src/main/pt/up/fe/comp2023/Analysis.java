@@ -224,7 +224,7 @@ public class Analysis implements JmmAnalysis {
             if (!type1.endsWith("[]"))
                 error(node, "Cannot index expression of type '" + type1 + "'");
 
-            if (!in(INTEGER_TYPES, type2))
+            if (!typesMatch(type2, "int"))
                 error(node, "Cannot use expression of type '" + type2 + "' as index");
 
             node.put("type", type1.substring(0, type1.length() - 2));
