@@ -14,7 +14,7 @@ class ObjectAssignmentFail {
         b = new B();
 
         // ObjectAssignmentFail does not extend B
-        a = b;
+        b = a;
 
         return a;
     }
