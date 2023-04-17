@@ -47,6 +47,10 @@ public final class Constants {
             "public", "protected", "private", "final", "static", "volatile", "transient"
     };
 
+    public static final String[] VARIABLE_MODIFIERS = {
+            "final"
+    };
+
     public static final String[] CONSTRUCTOR_MODIFIERS = {
             "public", "protected", "private"
     };

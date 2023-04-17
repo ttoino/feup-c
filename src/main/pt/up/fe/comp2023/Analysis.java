@@ -26,9 +26,7 @@ public class Analysis implements JmmAnalysis {
         table = new JmmSymbolTable(jmmParserResult.getRootNode());
 
         var main = table.getMethod("main");
-        if (main == null) {
-            reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "Could not find the main method"));
-        } else {
+        if (main != null) {
             if (!main.getReturnType().print().equals("void"))
                 reports.add(new Report(ReportType.ERROR, Stage.SEMANTIC, -1, -1, "The main method must return void"));
             if (main.getParameters().size() != 1 || !main.getParameters().get(0).getType().print().equals("String[]"))
@@ -348,7 +346,7 @@ public class Analysis implements JmmAnalysis {
                 case "ClassDeclaration" -> CLASS_MODIFIERS;
                 case "MethodDeclaration" -> METHOD_MODIFIERS;
                 case "ConstructorDeclaration" -> CONSTRUCTOR_MODIFIERS;
-                case "FieldDeclaration" -> FIELD_MODIFIERS;
+                case "FieldDeclaration" -> context == null ? FIELD_MODIFIERS : VARIABLE_MODIFIERS;
                 default -> new String[]{};
             };
 
