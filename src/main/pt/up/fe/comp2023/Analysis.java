@@ -136,6 +136,9 @@ public class Analysis implements JmmAnalysis {
 
             node.put("type", type == null ? "{unknown}" : type);
 
+            if (node.getKind().equals("VariableDeclaration") && node.get("type").equals("void"))
+                error(node, "Cannot declare variable of type 'void'");
+
             if (node.getNumChildren() > 1) {
                 var expType = node.getJmmChild(1).get("type");
 
