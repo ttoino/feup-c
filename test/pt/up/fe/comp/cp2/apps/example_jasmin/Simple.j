@@ -1,4 +1,4 @@
-.class public Simple
+.class public Simple\
 .super java/lang/Object
 
 .method public <init>()V

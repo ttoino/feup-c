@@ -194,6 +194,12 @@ public class Backend implements JasminBackend {
             var labels = method.getLabels(instruction);
 
             sb.append(this.buildJasminInstruction(instruction, varTable, labels, reports)).append('\n');
+
+            if (instruction.getInstType() == InstructionType.CALL
+                    && ((CallInstruction) instruction).getReturnType().getTypeOfElement() != ElementType.VOID) {
+
+                sb.append("\tpop\n");
+            }
         }
         if (!hasReturn) { // default to have a return
             if (!(method.isConstructMethod() || method.getReturnType().getTypeOfElement() == ElementType.VOID)) {
@@ -253,10 +259,8 @@ public class Backend implements JasminBackend {
         switch (instruction.getTypeOfAssign().getTypeOfElement()) {
 
             case INT32:
-                sb.append('i');
-                break;
             case BOOLEAN:
-                sb.append('z');
+                sb.append('i');
                 break;
             case ARRAYREF:
             case OBJECTREF:
@@ -308,10 +312,8 @@ public class Backend implements JasminBackend {
 
                     switch (op.getType().getTypeOfElement()) {
                         case INT32:
-                            sb.append('i');
-                            break;
                         case BOOLEAN:
-                            sb.append('z');
+                            sb.append('i');
                             break;
                         case ARRAYREF:
                         case OBJECTREF:
@@ -334,7 +336,7 @@ public class Backend implements JasminBackend {
                     sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
                 });
 
-                sb.append('\t').append("invokevirtual ").append(this.objectClasses.get(calledObject.getName())).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                sb.append('\t').append("invokevirtual ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminType(op.getType(), reports);
@@ -358,7 +360,8 @@ public class Backend implements JasminBackend {
                 sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
                 sb.append('\t').append("invokespecial ");
 
-                String objectName = this.objectClasses.get(calledObject.getName());
+                // TODO: perhaps RTE
+                String objectName = ((ClassType) calledObject.getType()).getName();
                 if (Objects.equals(calledObject.getName(), ElementType.THIS.toString().toLowerCase())) {
                     objectName = "java/lang/Object";
                 }
@@ -371,10 +374,6 @@ public class Backend implements JasminBackend {
                 });
 
                 sb.append(')').append(this.buildJasminType(instruction.getReturnType(), reports));
-
-                if (!Objects.equals(objectName, "java/lang/Object")) {
-                    sb.append('\n').append("\tpop");
-                }
 
                 break;
             }
@@ -394,10 +393,8 @@ public class Backend implements JasminBackend {
 
                     switch (op.getType().getTypeOfElement()) {
                         case INT32:
-                            sb.append('i');
-                            break;
                         case BOOLEAN:
-                            sb.append('z');
+                            sb.append('i');
                             break;
                         case ARRAYREF:
                         case OBJECTREF:
@@ -420,7 +417,7 @@ public class Backend implements JasminBackend {
                     sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
                 });
 
-                sb.append('\t').append("invokestatic ").append(this.objectClasses.get(calledObject.getName())).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                sb.append('\t').append("invokestatic ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminType(op.getType(), reports);
@@ -446,7 +443,14 @@ public class Backend implements JasminBackend {
             }
             case arraylength:
 
+                Operand op = (Operand) instruction.getFirstArg();
+                var descriptor = varTable.get(op.getName());
 
+                int regNum = descriptor.getVirtualReg();
+
+                // load the object reference onto the stack
+                sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+                sb.append("\tarraylength");
 
                 break;
             case ldc:
@@ -508,10 +512,8 @@ public class Backend implements JasminBackend {
                     sb.append("\t");
                     switch (instruction.getReturnType().getTypeOfElement()) {
                         case INT32:
-                            sb.append('i');
-                            break;
                         case BOOLEAN:
-                            sb.append('z');
+                            sb.append('i');
                             break;
                         case ARRAYREF:
                         case OBJECTREF:
@@ -536,10 +538,8 @@ public class Backend implements JasminBackend {
         sb.append('\t');
         switch (instruction.getReturnType().getTypeOfElement()) {
             case INT32:
-                sb.append('i');
-                break;
             case BOOLEAN:
-                sb.append('z');
+                sb.append('i');
                 break;
             case ARRAYREF:
             case OBJECTREF:
@@ -721,8 +721,11 @@ public class Backend implements JasminBackend {
 
             switch (elem.getType().getTypeOfElement()) {
                 case INT32 -> sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
-                case BOOLEAN -> sb.append("iconst_").append(value); // this works since true - 1 and false - 2
-                case ARRAYREF, OBJECTREF, CLASS, THIS, STRING, VOID -> {
+                case BOOLEAN -> sb.append("iconst_").append(value); // this works since true - 1 and false - 0
+                case ARRAYREF -> {
+                    instruction.show();
+                }
+                case OBJECTREF, CLASS, THIS, STRING, VOID -> {
                     // Non literals
                     instruction.show();
                     sb.append("AEDS");
@@ -746,6 +749,8 @@ public class Backend implements JasminBackend {
                     sb.append('z');
                     break;
                 case ARRAYREF:
+                    sb.append("aa");
+                    break;
                 case OBJECTREF:
                 case STRING:
                     sb.append('a');

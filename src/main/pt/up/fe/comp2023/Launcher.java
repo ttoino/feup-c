@@ -64,30 +64,45 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
+                import io;
                 Simple {
-                  	.construct Simple().V {
-                  		invokespecial(this, "<init>").V;
-                  	}
-                  	
-                  	.method public sum(A.array.i32, B.array.i32).array.i32 {
-                  		t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                  		C.array.i32 :=.array.i32 new(array, t1.i32).array.i32;
-                  		i.i32 :=.i32 0.i32;
-                  		
-                  		Loop:
-                  			t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                  			if (i.i32 >=.bool t1.i32) goto End;
-                  			
-                  			t2.i32 :=.i32 $1.A[i.i32].i32;
-                  			t3.i32 :=.i32 $2.B[i.i32].i32;
-                  			t4.i32 :=.i32 t2.i32 +.i32 t3.i32;
-                  			C[i.i32].i32 :=.i32 t4.i32;
-                  			i.i32 :=.i32 i.i32 +.i32 1.i32;
-                  			goto Loop;
-                  		End:
-                  			ret.array.i32 C.array.i32;
-                  	}
-                  }""", config);
+                .construct Simple().V {
+                invokespecial(this, "<init>").V;
+                }
+                                
+                .method public add(a.i32, b.i32).i32 {
+                temp_0.i32 :=.i32 invokevirtual(this, "constInstr").i32;
+                c.i32 :=.i32 $1.a.i32 +.i32 temp_0.i32;
+                ret.i32 c.i32;
+                }
+                                
+                .method public static main(args.array.String).V {
+                a.i32 :=.i32 20.i32;
+                b.i32 :=.i32 10.i32;
+                temp_2.Simple :=.Simple new(Simple).Simple;
+                invokespecial(temp_2.Simple,"<init>").V;
+                s.Simple :=.Simple temp_2.Simple;
+                temp_3.i32 :=.i32 invokevirtual(s.Simple, "add", a.i32, b.i32).i32;
+                c.i32 :=.i32 temp_3.i32;
+                invokestatic(io, "println", c.i32).V;
+                ret.V;
+                }
+                                
+                .method public constInstr().i32 {
+                c.i32 :=.i32 0.i32;
+                c.i32 :=.i32 4.i32;
+                c.i32 :=.i32 8.i32;
+                c.i32 :=.i32 14.i32;
+                c.i32 :=.i32 250.i32;
+                c.i32 :=.i32 400.i32;
+                c.i32 :=.i32 1000.i32;
+                c.i32 :=.i32 100474650.i32;
+                c.i32 :=.i32 10.i32;
+                ret.i32 c.i32;
+                }
+                                
+                }
+                """, config);
 
         var generatedCode = backend.toJasmin(result);
 
