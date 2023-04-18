@@ -170,9 +170,8 @@ public class JmmSymbolTable implements SymbolTable {
         }
 
         private Object visitImport(JmmNode node, Object context) {
-            imports.add(
-                    String.join("", node.getObjectAsList("classPackage", String.class))
-                            + node.get("className"));
+            var prefix = String.join(".", node.getObjectAsList("classPackage", String.class));
+            imports.add(prefix.isEmpty() ? node.get("className") : prefix + "." + node.get("className"));
 
             return context;
         }

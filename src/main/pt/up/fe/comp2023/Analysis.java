@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static pt.up.fe.comp2023.Constants.*;
 
@@ -113,9 +114,11 @@ public class Analysis implements JmmAnalysis {
             var method = table.getMethod(context);
             var isStatic = method != null && method.getModifiers().contains("static");
 
-            for (var imp : table.getImports())
-                if (imp.equals(id))
+            for (var imp : table.getImports()) {
+                var split = imp.split("\\.");
+                if (split[split.length - 1].equals(id))
                     type = id;
+            }
             // TODO: static fields
             if (!isStatic)
                 for (var field : table.getFields())
@@ -462,7 +465,10 @@ public class Analysis implements JmmAnalysis {
         protected String checkComplexType(JmmNode node, String context) {
             var type = node.get("id");
 
-            if (!type.equals(table.getClassName()) && !in(UNIVERSAL_IMPORTS, type) && !table.getImports().contains(type))
+            if (!type.equals(table.getClassName()) && !in(UNIVERSAL_IMPORTS, type) && table.getImports().stream().map(i -> {
+                var split = i.split("\\.");
+                return split[split.length - 1];
+            }).noneMatch(i -> i.equals(type)))
                 error(node, "Cannot use '" + type + "' as a type without importing it");
 
             return context;
@@ -481,7 +487,10 @@ public class Analysis implements JmmAnalysis {
                     // First is Object and second is not primitive
                     || type1.equals("Object") && !in(PRIMITIVE_TYPES, type2)
                     // Both are imported
-                    || table.getImports().containsAll(List.of(type1, type2))
+                    || table.getImports().stream().map(i -> {
+                        var split = i.split("\\.");
+                        return split[split.length - 1];
+                    }).collect(Collectors.toSet()).containsAll(List.of(type1, type2))
                     // First is superclass of second
                     || table.getSuper() != null && table.getSuper().equals(type1) && table.getClassName().equals(type2)
                     // Both equal

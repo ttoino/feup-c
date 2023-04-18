@@ -56,10 +56,10 @@ public class Launcher {
         for (Report report : semanticsResult.getReports())
             System.err.println(report.getLine() + ":" + report.getColumn() + " " + report.getMessage());
 
-        if (!semanticsResult.getReports().isEmpty()) return;
-
         System.out.println("\n================================= SYMBOL TABLE =================================\n");
         System.out.println(semanticsResult.getSymbolTable().print());
+
+        if (!semanticsResult.getReports().isEmpty()) return;
 
         Backend backend = new Backend();
 
