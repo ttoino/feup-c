@@ -58,37 +58,16 @@ public class Launcher {
 
         if (reports(semanticsResult.getReports())) return;
 
+        Optimization optimization = new Optimization();
+        OllirResult ollirResult = optimization.toOllir(semanticsResult);
+
+        if (reports(ollirResult.getReports())) return;
+
+        System.out.println("\n===================================== OLLIR ====================================\n");
+        System.out.println(ollirResult.getOllirCode());
+
         Backend backend = new Backend();
-
-        OllirResult result = new OllirResult("""
-                Simple {
-                	.construct Simplez().V {
-                		invokespecial(this, "<init>").V;
-                	}
-                	
-                	.method public sum(A.array.i32, B.array.i32).array.i32 {
-                		t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                		C.array.i32 :=.array.i32 new(array, t1.i32).array.i32;
-                		i.i32 :=.i32 0.i32;
-                		
-                		Loop:
-                			t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                			if (i.i32 >=.bool t1.i32) goto End;
-                			
-                			t2.i32 :=.i32 $1.A[i.i32].i32;
-                			t3.i32 :=.i32 $2.B[i.i32].i32;
-                			t4.i32 :=.i32 t2.i32 +.i32 t3.i32;
-                			C[i.i32].i32 :=.i32 t4.i32;
-                			i.i32 :=.i32 i.i32 +.i32 1.i32;
-                			goto Loop;
-                		End:
-                			ret.array.i32 C.array.i32;
-                	}
-                }
-                                
-                """, config);
-
-        JasminResult jasminResult = backend.toJasmin(result);
+        JasminResult jasminResult = backend.toJasmin(ollirResult);
 
         if (reports(jasminResult.getReports())) return;
 
