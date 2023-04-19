@@ -8,11 +8,14 @@ import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 public class Backend implements JasminBackend {
 
-    private final Map<String, String> objectClasses = new HashMap<>();
+    private String superClassName;
 
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
@@ -47,10 +50,7 @@ public class Backend implements JasminBackend {
 
         if (className == null) return "";
 
-        this.objectClasses.put(ElementType.THIS.toString().toLowerCase(), className);
-        for (String classImport : ollirClass.getImportedClasseNames())
-            this.objectClasses.put(classImport, classImport);
-
+        /*
         if (fileName != null) {
             if (!fileName.equals(className.concat(".jmm"))) {
                 reports.add(Report.newError(Stage.GENERATION, -1, -1, "Top level classes should have the same name as the file they are defined in: expected '" + fileName + "', got '" + className + ".jmm'", new Exception("Top level classes should have the same name as the file they are defined in")));
@@ -59,6 +59,7 @@ public class Backend implements JasminBackend {
 
             sb.append(".source ").append(fileName).append('\n');
         }
+        */
 
         sb.append(".class ");
 
@@ -73,6 +74,7 @@ public class Backend implements JasminBackend {
 
         var superName = Optional.ofNullable(ollirClass.getSuperClass()).orElse("java.lang.Object").replaceAll("\\.", "/");
         sb.append(".super ").append(superName).append("\n\n");
+        this.superClassName = superName;
 
         for (Field field : ollirClass.getFields())
             sb.append(this.buildJasminField(field, reports)).append('\n');
@@ -230,9 +232,9 @@ public class Backend implements JasminBackend {
             case RETURN:
                 return this.buildJasminReturnInstruction((ReturnInstruction) instruction, varTable, reports);
             case PUTFIELD:
-                break;
+                return this.buildJasminPutfieldOperation((PutFieldInstruction) instruction, varTable, reports);
             case GETFIELD:
-                break;
+                return this.buildJasminGetfieldOperation((GetFieldInstruction) instruction, varTable, reports);
             case UNARYOPER:
                 return this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) instruction, varTable, reports);
             case BINARYOPER:
@@ -363,7 +365,7 @@ public class Backend implements JasminBackend {
                 // TODO: perhaps RTE
                 String objectName = ((ClassType) calledObject.getType()).getName();
                 if (Objects.equals(calledObject.getName(), ElementType.THIS.toString().toLowerCase())) {
-                    objectName = "java/lang/Object";
+                    objectName = this.superClassName;
                 }
 
                 sb.append(objectName).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
@@ -417,7 +419,12 @@ public class Backend implements JasminBackend {
                     sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
                 });
 
-                sb.append('\t').append("invokestatic ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                var className = calledObject.getName();
+                if (Objects.equals(className, ElementType.THIS.toString().toLowerCase())) {
+                    className = ((ClassType) calledObject.getType()).getName();
+                }
+
+                sb.append('\t').append("invokestatic ").append(className).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminType(op.getType(), reports);
@@ -435,9 +442,6 @@ public class Backend implements JasminBackend {
 
                 sb.append("\tnew ").append(className).append('\n');
                 sb.append("\tdup");
-
-                // FIXME: Eww
-                this.objectClasses.put("temp_" + objectClass.getParamId(), className);
 
                 break;
             }
@@ -559,6 +563,115 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
+    private String buildJasminPutfieldOperation(PutFieldInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        var sb = new StringBuilder();
+
+        var firstOperand = (Operand) instruction.getFirstOperand();
+        var secondOperand = (Operand) instruction.getSecondOperand();
+
+        var firstDescriptor = varTable.get(firstOperand.getName());
+        var firstRegNum = firstDescriptor.getVirtualReg();
+
+        var thirdOperand = instruction.getThirdOperand();
+
+        sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
+
+        sb.append('\t');
+        if (thirdOperand.isLiteral()) {
+            var literal = (LiteralElement) thirdOperand;
+
+            var value = literal.getLiteral();
+
+            switch (literal.getType().getTypeOfElement()) {
+                case INT32 -> sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
+                case BOOLEAN -> sb.append("iconst_").append(value); // this works since true - 1 and false - 0
+                case ARRAYREF -> {
+                    instruction.show();
+                }
+                case OBJECTREF, CLASS, THIS, STRING, VOID -> {
+                    // Non literals
+                    instruction.show();
+                    sb.append("AEDS");
+                }
+            }
+
+        } else {
+            var op = (Operand) thirdOperand;
+
+            var thirdDescriptor = varTable.get(op.getName());
+            var regNum = thirdDescriptor.getVirtualReg();
+
+            switch (op.getType().getTypeOfElement()) {
+                case INT32:
+                case BOOLEAN:
+                    sb.append('i');
+                    break;
+                case ARRAYREF:
+                case OBJECTREF:
+                case STRING:
+                    sb.append('a');
+                    break;
+                case THIS:
+                    // TODO: Error?
+                    break;
+                case CLASS:
+                    // TODO: ?
+                    break;
+                case VOID:
+                    reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                    break;
+            }
+            sb.append("load").append(regNum < 4 ? '_' : ' ').append(regNum);
+
+        }
+        sb.append('\n');
+
+        sb.append("\tputfield ");
+
+        var className = firstOperand.getName();
+        if (Objects.equals(className, ElementType.THIS.toString().toLowerCase())) {
+            className = ((ClassType) firstOperand.getType()).getName();
+        }
+
+        sb.append(className);
+        sb.append('/');
+
+        sb.append(secondOperand.getName());
+        sb.append(' ').append(this.buildJasminType(secondOperand.getType(), reports));
+
+        return sb.toString();
+    }
+
+    private String buildJasminGetfieldOperation(GetFieldInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+        var sb = new StringBuilder();
+
+        instruction.show();
+
+        var firstOperand = (Operand) instruction.getFirstOperand();
+        var secondOperand = (Operand) instruction.getSecondOperand();
+
+        var firstDescriptor = varTable.get(firstOperand.getName());
+        var firstRegNum = firstDescriptor.getVirtualReg();
+
+        sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
+
+        sb.append("\tgetfield ");
+
+        var className = firstOperand.getName();
+        if (Objects.equals(className, ElementType.THIS.toString().toLowerCase())) {
+            className = ((ClassType) firstOperand.getType()).getName();
+        }
+
+        sb.append(className);
+        sb.append('/');
+
+        sb.append(secondOperand.getName());
+        sb.append(' ').append(this.buildJasminType(secondOperand.getType(), reports));
+
+        return sb.toString();
+    }
+
     private String buildJasminUnaryOperatorInstruction(UnaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
 
@@ -628,9 +741,25 @@ public class Backend implements JasminBackend {
             case CLASS, THIS, VOID -> "";
         };
 
+        sb.append('\t');
         var op1 = instruction.getLeftOperand();
         if (op1.isLiteral()) {
+            var literal = (LiteralElement) op1;
 
+            var value = literal.getLiteral();
+
+            switch (literal.getType().getTypeOfElement()) {
+                case INT32 -> sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
+                case BOOLEAN -> sb.append("iconst_").append(value); // this works since true - 1 and false - 0
+                case ARRAYREF -> {
+                    instruction.show();
+                }
+                case OBJECTREF, CLASS, THIS, STRING, VOID -> {
+                    // Non literals
+                    instruction.show();
+                    sb.append("AEDS");
+                }
+            }
         } else {
             var op = (Operand) op1;
 
@@ -638,13 +767,29 @@ public class Backend implements JasminBackend {
 
             int regNum = descriptor.getVirtualReg();
 
-            sb.append('\t').append(dType).append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+            sb.append(dType).append("load").append(regNum < 4 ? '_' : ' ').append(regNum);
         }
+        sb.append('\n');
 
-
+        sb.append('\t');
         var op2 = instruction.getRightOperand();
         if (op2.isLiteral()) {
+            var literal = (LiteralElement) op2;
 
+            var value = literal.getLiteral();
+
+            switch (literal.getType().getTypeOfElement()) {
+                case INT32 -> sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
+                case BOOLEAN -> sb.append("iconst_").append(value); // this works since true - 1 and false - 0
+                case ARRAYREF -> {
+                    instruction.show();
+                }
+                case OBJECTREF, CLASS, THIS, STRING, VOID -> {
+                    // Non literals
+                    instruction.show();
+                    sb.append("AEDS");
+                }
+            }
         } else {
             var op = (Operand) op2;
 
@@ -652,8 +797,9 @@ public class Backend implements JasminBackend {
 
             int regNum = descriptor.getVirtualReg();
 
-            sb.append('\t').append(dType).append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+            sb.append(dType).append("load").append(regNum < 4 ? '_' : ' ').append(regNum);
         }
+        sb.append('\n');
 
         sb.append('\t').append(dType);
         switch (operation.getOpType()) {

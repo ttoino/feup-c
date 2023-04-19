@@ -12,11 +12,11 @@ boas
 
 
 */
-class Simple extends A {
+class Simple {
 
     private static final int lol = 3;
 
-    public B() {
+    public Simple() {
 
         int c;
     }
@@ -35,5 +35,4 @@ class Simple extends A {
     }
 
     private int a = 0;
-
 }

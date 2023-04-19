@@ -64,43 +64,34 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
-                import io;
+                import ioPlus;
                 Simple {
-                .construct Simple().V {
-                invokespecial(this, "<init>").V;
-                }
                                 
-                .method public add(a.i32, b.i32).i32 {
-                temp_0.i32 :=.i32 invokevirtual(this, "constInstr").i32;
-                c.i32 :=.i32 $1.a.i32 +.i32 temp_0.i32;
-                ret.i32 c.i32;
-                }
+                	.field intField.i32;
                                 
-                .method public static main(args.array.String).V {
-                a.i32 :=.i32 20.i32;
-                b.i32 :=.i32 10.i32;
-                temp_2.Simple :=.Simple new(Simple).Simple;
-                invokespecial(temp_2.Simple,"<init>").V;
-                s.Simple :=.Simple temp_2.Simple;
-                temp_3.i32 :=.i32 invokevirtual(s.Simple, "add", a.i32, b.i32).i32;
-                c.i32 :=.i32 temp_3.i32;
-                invokestatic(io, "println", c.i32).V;
-                ret.V;
-                }
+                	.construct Simple().V {
+                		invokespecial(this, "<init>").V;
+                	}
                                 
-                .method public constInstr().i32 {
-                c.i32 :=.i32 0.i32;
-                c.i32 :=.i32 4.i32;
-                c.i32 :=.i32 8.i32;
-                c.i32 :=.i32 14.i32;
-                c.i32 :=.i32 250.i32;
-                c.i32 :=.i32 400.i32;
-                c.i32 :=.i32 1000.i32;
-                c.i32 :=.i32 100474650.i32;
-                c.i32 :=.i32 10.i32;
-                ret.i32 c.i32;
-                }
+                	.method public static main(args.array.String).V {
+                		ret.V;
+                	}
                                 
+                	
+                	.method public foo().V {
+                         
+                        a.i32 :=.i32 1.i32;
+                        b.i32 :=.i32 2.i32;
+                        
+                        c.i32 :=.i32 a.i32 +.i32 b.i32;
+                        d.i32 :=.i32 c.i32 +.i32 5.i32;
+                        
+                		putfield(this, intField.i32, 10.i32).V;
+                		a.i32 :=.i32 getfield(this, intField.i32).i32;
+                                
+                        invokestatic(ioPlus, "printHelloWorld").V;
+                		ret.V;
+                	}
                 }
                 """, config);
 
