@@ -8,6 +8,7 @@ import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
+import javax.lang.model.element.Parameterizable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -50,34 +51,32 @@ public class Backend implements JasminBackend {
 
         if (className == null) return "";
 
-        /*
         if (fileName != null) {
             if (!fileName.equals(className.concat(".jmm"))) {
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Top level classes should have the same name as the file they are defined in: expected '" + fileName + "', got '" + className + ".jmm'", new Exception("Top level classes should have the same name as the file they are defined in")));
-                return "";
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Top level classes should have the same name as the file they are defined in: expected '" + fileName + "', got '" + className + ".jmm'", new Exception("Top level classes should have the same name as the file they are defined in")));
             }
 
             sb.append(".source ").append(fileName).append('\n');
         }
-        */
 
         sb.append(".class ");
 
         var classAccessModifier = ollirClass.getClassAccessModifier();
         String modifier = classAccessModifier.name().toLowerCase();
-        if (classAccessModifier == AccessModifiers.DEFAULT) modifier = "public";
+        if (classAccessModifier == AccessModifiers.DEFAULT) modifier = "public"; // TODO: this is made in order
         sb.append(modifier);
-
-        // TODO: package
-
         sb.append(' ').append(className).append('\n');
 
         var superName = Optional.ofNullable(ollirClass.getSuperClass()).orElse("java.lang.Object").replaceAll("\\.", "/");
-        sb.append(".super ").append(superName).append("\n\n");
+        sb.append(".super ").append(superName).append("\n");
         this.superClassName = superName;
 
+        sb.append('\n');
+
         for (Field field : ollirClass.getFields())
-            sb.append(this.buildJasminField(field, reports)).append('\n');
+            sb.append(this.buildJasminClassField(field, reports)).append('\n');
+
+        sb.append('\n');
 
         boolean hasConstructor = false;
         for (Method method : ollirClass.getMethods()) {
@@ -92,7 +91,7 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
-    private String buildJasminField(Field field, List<Report> reports) {
+    private String buildJasminClassField(Field field, List<Report> reports) {
 
         StringBuilder sb = new StringBuilder();
 
@@ -107,7 +106,7 @@ public class Backend implements JasminBackend {
 
         sb.append(field.getFieldName()).append(' ');
 
-        sb.append(this.buildJasminType(field.getFieldType(), reports));
+        sb.append(this.buildJasminTypeDescriptor(field.getFieldType(), reports));
 
         if (field.isInitialized()) {
 
@@ -124,10 +123,10 @@ public class Backend implements JasminBackend {
         // FIXME: should this be placed in a different function ?
         if (method.isConstructMethod()) {
             if (method.isStaticMethod()) { // constructor cannot be static
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot generate static constructor(" + method.getMethodName() + ")", new Exception("Cannot generate static constructor")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot generate static constructor(" + method.getMethodName() + ")", new Exception("Cannot generate static constructor")));
                 return "";
             } else if (method.isFinalMethod()) {
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot generate final constructor(" + method.getMethodName() + ")", new Exception("Cannot generate final constructor")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot generate final constructor(" + method.getMethodName() + ")", new Exception("Cannot generate final constructor")));
                 return "";
             }
         }
@@ -167,7 +166,7 @@ public class Backend implements JasminBackend {
         sb.append('(');
 
         for (var param : method.getParams())
-            sb.append(this.buildJasminType(param.getType(), reports));
+            sb.append(this.buildJasminTypeDescriptor(param.getType(), reports));
 
         sb.append(")");
 
@@ -176,7 +175,7 @@ public class Backend implements JasminBackend {
 
         // even though constructors return void, short-circuit the check
         if (method.isConstructMethod() || isVoid) sb.append('V');
-        else sb.append(this.buildJasminType(methodReturnType, reports));
+        else sb.append(this.buildJasminTypeDescriptor(methodReturnType, reports));
         sb.append('\n');
 
         return sb.toString();
@@ -205,7 +204,7 @@ public class Backend implements JasminBackend {
         }
         if (!hasReturn) { // default to have a return
             if (!(method.isConstructMethod() || method.getReturnType().getTypeOfElement() == ElementType.VOID)) {
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Non-void function must have a return type", new Exception("Non-void function must have a return type")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Non-void function must have a return type", new Exception("Non-void function must have a return type")));
                 return "";
             }
 
@@ -243,7 +242,7 @@ public class Backend implements JasminBackend {
                 return this.buildJasminSingleOpInstruction((SingleOpInstruction) instruction, varTable, reports);
         }
 
-        return "\tnop";
+        return "\tno-op";
     }
 
     private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<String> labels, List<Report> reports) {
@@ -273,10 +272,10 @@ public class Backend implements JasminBackend {
                 // TODO: ?
                 break;
             case THIS:
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot assign to 'this' reference", new Exception("Cannot assign to 'this' reference")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to 'this' reference", new Exception("Cannot assign to 'this' reference")));
                 break;
             case VOID:
-                reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
                 break;
         }
         sb.append("store");
@@ -290,8 +289,7 @@ public class Backend implements JasminBackend {
         var sb = new StringBuilder();
 
         switch (instruction.getInvocationType()) {
-
-            case invokevirtual: {// method call on object reference
+            case invokevirtual -> {// method call on object reference
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
@@ -329,7 +327,7 @@ public class Backend implements JasminBackend {
                             // TODO: ?
                             break;
                         case VOID:
-                            reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                            reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                             break;
                     }
 
@@ -341,17 +339,16 @@ public class Backend implements JasminBackend {
                 sb.append('\t').append("invokevirtual ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
-                    var opType = this.buildJasminType(op.getType(), reports);
+                    var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
                     sb.append(opType);
                 });
 
-                sb.append(')').append(this.buildJasminType(instruction.getReturnType(), reports));
+                sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
-                break;
             }
-            case invokeinterface:
-                break;
-            case invokespecial: {
+            case invokeinterface -> {
+            }
+            case invokespecial -> {
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
@@ -371,15 +368,14 @@ public class Backend implements JasminBackend {
                 sb.append(objectName).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
-                    var opType = this.buildJasminType(op.getType(), reports);
+                    var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
                     sb.append(opType);
                 });
 
-                sb.append(')').append(this.buildJasminType(instruction.getReturnType(), reports));
+                sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
-                break;
             }
-            case invokestatic: {
+            case invokestatic -> {
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
@@ -394,24 +390,10 @@ public class Backend implements JasminBackend {
                     int argRegNum = argDescriptor.getVirtualReg();
 
                     switch (op.getType().getTypeOfElement()) {
-                        case INT32:
-                        case BOOLEAN:
-                            sb.append('i');
-                            break;
-                        case ARRAYREF:
-                        case OBJECTREF:
-                        case STRING:
-                            sb.append('a');
-                            break;
-                        case THIS:
-                            // TODO: Error?
-                            break;
-                        case CLASS:
-                            // TODO: ?
-                            break;
-                        case VOID:
-                            reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
-                            break;
+                        case INT32, BOOLEAN -> sb.append('i');
+                        case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
+                        case VOID ->
+                                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                     }
 
                     sb.append("load");
@@ -427,15 +409,14 @@ public class Backend implements JasminBackend {
                 sb.append('\t').append("invokestatic ").append(className).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
-                    var opType = this.buildJasminType(op.getType(), reports);
+                    var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
                     sb.append(opType);
                 });
 
-                sb.append(')').append(this.buildJasminType(instruction.getReturnType(), reports));
+                sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
-                break;
             }
-            case NEW: {
+            case NEW -> {
                 Operand objectClass = (Operand) instruction.getFirstArg();
 
                 var className = objectClass.getName();
@@ -443,9 +424,8 @@ public class Backend implements JasminBackend {
                 sb.append("\tnew ").append(className).append('\n');
                 sb.append("\tdup");
 
-                break;
             }
-            case arraylength:
+            case arraylength -> {
 
                 Operand op = (Operand) instruction.getFirstArg();
                 var descriptor = varTable.get(op.getName());
@@ -456,9 +436,9 @@ public class Backend implements JasminBackend {
                 sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
                 sb.append("\tarraylength");
 
-                break;
-            case ldc:
-                break;
+            }
+            case ldc -> {
+            }
         }
 
         return sb.toString();
@@ -499,7 +479,7 @@ public class Backend implements JasminBackend {
                     }
                     case BOOLEAN -> sb.append("bipush ").append(literal.getLiteral());
                     case ARRAYREF, OBJECTREF, STRING, THIS, CLASS, VOID ->
-                            reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                            reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                 }
                 sb.append('\n');
             } else {
@@ -529,7 +509,7 @@ public class Backend implements JasminBackend {
                             // TODO: ?
                             break;
                         case VOID:
-                            reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                            reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                             break;
                     }
                     sb.append("load");
@@ -610,16 +590,12 @@ public class Backend implements JasminBackend {
                 case ARRAYREF:
                 case OBJECTREF:
                 case STRING:
+                case CLASS:
+                case THIS:
                     sb.append('a');
                     break;
-                case THIS:
-                    // TODO: Error?
-                    break;
-                case CLASS:
-                    // TODO: ?
-                    break;
                 case VOID:
-                    reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                     break;
             }
             sb.append("load").append(regNum < 4 ? '_' : ' ').append(regNum);
@@ -638,7 +614,7 @@ public class Backend implements JasminBackend {
         sb.append('/');
 
         sb.append(secondOperand.getName());
-        sb.append(' ').append(this.buildJasminType(secondOperand.getType(), reports));
+        sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
 
         return sb.toString();
     }
@@ -667,7 +643,7 @@ public class Backend implements JasminBackend {
         sb.append('/');
 
         sb.append(secondOperand.getName());
-        sb.append(' ').append(this.buildJasminType(secondOperand.getType(), reports));
+        sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
 
         return sb.toString();
     }
@@ -899,16 +875,12 @@ public class Backend implements JasminBackend {
                     break;
                 case OBJECTREF:
                 case STRING:
+                case CLASS:
+                case THIS:
                     sb.append('a');
                     break;
-                case THIS:
-                    // TODO: Error?
-                    break;
-                case CLASS:
-                    // TODO: ?
-                    break;
                 case VOID:
-                    reports.add(Report.newError(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                     break;
             }
 
@@ -920,29 +892,23 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
-    private String buildJasminType(Type type, List<Report> reports) {
+    private String buildJasminTypeDescriptor(Type type, List<Report> reports) {
 
         return switch (type.getTypeOfElement()) {
-            case ARRAYREF -> this.buildJasminArrayType((ArrayType) type, reports);
-            case OBJECTREF, CLASS ->
-                // what's the difference?
-
-                    this.buildJasminClassType((ClassType) type, reports);
+            case ARRAYREF -> this.buildJasminArrayTypeDescriptor((ArrayType) type, reports);
+            case OBJECTREF, CLASS, THIS -> this.buildJasminClassaTypeDescriptor((ClassType) type, reports);
             case INT32 -> "I";
             case BOOLEAN -> "Z";
-            case THIS ->
-                // ??
-                    "this";
             case STRING -> "Ljava/lang/String;";
             case VOID -> "V";
         };
     }
 
-    private String buildJasminArrayType(ArrayType type, List<Report> reports) {
-        return "[".repeat(Math.max(0, type.getNumDimensions())) + this.buildJasminType(type.getElementType(), reports);
+    private String buildJasminArrayTypeDescriptor(ArrayType type, List<Report> reports) {
+        return "[".repeat(Math.max(0, type.getNumDimensions())) + this.buildJasminTypeDescriptor(type.getElementType(), reports);
     }
 
-    private String buildJasminClassType(ClassType type, List<Report> reports) {
+    private String buildJasminClassaTypeDescriptor(ClassType type, List<Report> reports) {
         return "L" + type.getName() + ";";
     }
 }

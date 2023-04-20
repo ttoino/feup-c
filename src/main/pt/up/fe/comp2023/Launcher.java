@@ -77,7 +77,6 @@ public class Launcher {
                 		ret.V;
                 	}
                                 
-                	
                 	.method public foo().V {
                          
                         a.i32 :=.i32 1.i32;
@@ -90,6 +89,7 @@ public class Launcher {
                 		a.i32 :=.i32 getfield(this, intField.i32).i32;
                                 
                         invokestatic(ioPlus, "printHelloWorld").V;
+                        invokestatic(Simple, "main").V;
                 		ret.V;
                 	}
                 }
