@@ -336,7 +336,7 @@ public class Backend implements JasminBackend {
                     sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
                 });
 
-                sb.append('\t').append("invokevirtual ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                sb.append('\t').append("invokevirtual ").append(((ClassType) calledObject.getType()).getName()).append('.').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
@@ -365,7 +365,7 @@ public class Backend implements JasminBackend {
                     objectName = this.superClassName;
                 }
 
-                sb.append(objectName).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                sb.append(objectName).append('.').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
@@ -406,7 +406,7 @@ public class Backend implements JasminBackend {
                     className = ((ClassType) calledObject.getType()).getName();
                 }
 
-                sb.append('\t').append("invokestatic ").append(className).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
+                sb.append('\t').append("invokestatic ").append(className).append('.').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
 
                 instruction.getListOfOperands().forEach((op) -> {
                     var opType = this.buildJasminTypeDescriptor(op.getType(), reports);
@@ -511,6 +511,7 @@ public class Backend implements JasminBackend {
                         case VOID:
                             reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
                             break;
+                        default:
                     }
                     sb.append("load");
 
@@ -583,20 +584,10 @@ public class Backend implements JasminBackend {
             var regNum = thirdDescriptor.getVirtualReg();
 
             switch (op.getType().getTypeOfElement()) {
-                case INT32:
-                case BOOLEAN:
-                    sb.append('i');
-                    break;
-                case ARRAYREF:
-                case OBJECTREF:
-                case STRING:
-                case CLASS:
-                case THIS:
-                    sb.append('a');
-                    break;
-                case VOID:
-                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
-                    break;
+                case INT32, BOOLEAN -> sb.append('i');
+                case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> sb.append('a');
+                case VOID ->
+                        reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
             }
             sb.append("load").append(regNum < 4 ? '_' : ' ').append(regNum);
 
