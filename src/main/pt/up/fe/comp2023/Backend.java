@@ -8,7 +8,6 @@ import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.Stage;
 
-import javax.lang.model.element.Parameterizable;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -384,21 +383,43 @@ public class Backend implements JasminBackend {
 
                     sb.append('\t');
 
-                    Operand op = (Operand) arg;
+                    if (arg.isLiteral()) {
 
-                    var argDescriptor = varTable.get(op.getName());
-                    int argRegNum = argDescriptor.getVirtualReg();
+                        LiteralElement literal = (LiteralElement) arg;
 
-                    switch (op.getType().getTypeOfElement()) {
-                        case INT32, BOOLEAN -> sb.append('i');
-                        case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
-                        case VOID ->
-                                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                        sb.append('\t');
+                        switch (instruction.getReturnType().getTypeOfElement()) {
+                            case INT32 -> {
+                                var value = literal.getLiteral();
+
+                                sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
+                            }
+                            case BOOLEAN -> sb.append("bipush ").append(literal.getLiteral());
+                            case ARRAYREF, OBJECTREF, STRING, THIS, CLASS, VOID ->
+                                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                        }
+
+                    } else {
+
+                        Operand op = (Operand) arg;
+
+                        var argDescriptor = varTable.get(op.getName());
+                        int argRegNum = argDescriptor.getVirtualReg();
+
+                        switch (op.getType().getTypeOfElement()) {
+                            case INT32, BOOLEAN -> sb.append('i');
+                            case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
+                            case VOID ->
+                                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+                        }
+
+                        sb.append("load");
+
+                        sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum);
+
                     }
 
-                    sb.append("load");
-
-                    sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
+                    sb.append('\n');
                 });
 
                 var className = calledObject.getName();
