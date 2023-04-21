@@ -256,25 +256,10 @@ public class Backend implements JasminBackend {
 
         sb.append('\t');
         switch (instruction.getTypeOfAssign().getTypeOfElement()) {
-
-            case INT32:
-            case BOOLEAN:
-                sb.append('i');
-                break;
-            case ARRAYREF:
-            case OBJECTREF:
-            case STRING:
-                sb.append('a');
-                break;
-            case CLASS:
-                // TODO: ?
-                break;
-            case THIS:
-                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to 'this' reference", new Exception("Cannot assign to 'this' reference")));
-                break;
-            case VOID:
-                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
-                break;
+            case INT32, BOOLEAN -> sb.append('i');
+            case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> sb.append('a');
+            case VOID ->
+                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
         }
         sb.append("store");
 

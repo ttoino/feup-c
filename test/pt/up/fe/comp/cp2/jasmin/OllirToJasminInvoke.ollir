@@ -9,6 +9,7 @@ Test {
 	.method public static main(args.array.String).V {
 		test.Test :=.Test new(Test).Test;	
 		invokespecial(test.Test,"<init>").V;
+		invokestatic(io, "printHelloWorld").V;
 
 		ret.V;
 	}
