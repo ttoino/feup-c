@@ -134,10 +134,12 @@ public class Analysis implements JmmAnalysis {
             if (in(UNIVERSAL_IMPORTS, id))
                 type = id;
 
-            if (type == null)
+            if (type == null) {
                 error(node, "Cannot access variable '" + id + "' without declaration");
+                type = "{unknown}";
+            }
 
-            node.put("type", type == null ? "{unknown}" : type);
+            node.put("type", type);
 
             if (node.getKind().equals("VariableDeclaration") && node.get("type").equals("void"))
                 error(node, "Cannot declare variable of type 'void'");
@@ -160,7 +162,7 @@ public class Analysis implements JmmAnalysis {
 
             if (!(typesMatch(type, "int") && in(INTEGER_OPS, op)
                 || typesMatch(type, "float") && in(FLOAT_OPS, op)
-                || typesMatch(type,"boolean") && in(BOOLEAN_OPS, op)
+                || typesMatch(type, "boolean") && in(BOOLEAN_OPS, op)
                 || in(UNIVERSAL_OPS, op)))
                 error(node, "Cannot use '" + op + "' on expression of type '" + type + "'");
 
@@ -256,6 +258,13 @@ public class Analysis implements JmmAnalysis {
                 } else {
                     node.put("type", "*");
                 }
+            } else if (type.endsWith("[]")) {
+                if (prop.equals("length")) {
+                    node.put("type", "int");
+                } else {
+                    error(node, "Cannot access property '" + prop + "' on object of type '" + type + "'");
+                    node.put("type", "{unknown}");
+                }
             } else {
                 node.put("type", "*");
             }
@@ -339,7 +348,7 @@ public class Analysis implements JmmAnalysis {
 
             node.put("type", type + "[]");
 
-            if (index.equals("int"))
+            if (typesMatch(index, "int"))
                 error(node, "Cannot create new array with expression of type '" + index + "' as length");
 
             return context;
