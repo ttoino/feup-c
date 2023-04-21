@@ -64,35 +64,37 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
-                import ioPlus;
                 Simple {
                                 
-                	.field intField.i32;
-                                
                 	.construct Simple().V {
-                		invokespecial(this, "<init>").V;
+                 		invokespecial(this, "<init>").V;
                 	}
                                 
-                	.method public static main(args.array.String).V {
-                		ret.V;
+                	.method public check(A.array.i32, N.i32, T.i32).bool {
+                                
+                				i.i32 :=.i32 0.i32;
+                				all.bool :=.bool 0.bool;
+                		Loop:
+                				t1.bool :=.bool i.i32 <.i32 $2.N.i32;
+                				t2.i32 :=.i32 $1.A[i.i32].i32;
+                				t3.bool :=.bool t2.i32 <.i32 $3.T.i32;
+                				if (t1.bool &&.bool t3.bool) goto Body;
+                				goto EndLoop;
+                			Body:
+                				i.i32 :=.i32 i.i32 +.i32 1.i32;
+                				goto Loop;
+                			EndLoop:
+                				if (i.i32 ==.bool $2.N.i32) goto Then;
+                				goto End;
+                			Then:
+                				all.bool :=.bool 1.bool;
+                			
+                		End:
+                				ret.bool all.bool;
                 	}
                                 
-                	.method public foo().V {
-                         
-                        a.i32 :=.i32 1.i32;
-                        b.i32 :=.i32 2.i32;
-                        
-                        c.i32 :=.i32 a.i32 +.i32 b.i32;
-                        d.i32 :=.i32 c.i32 +.i32 5.i32;
-                        
-                		putfield(this, intField.i32, 10.i32).V;
-                		a.i32 :=.i32 getfield(this, intField.i32).i32;
-                                
-                        invokestatic(ioPlus, "printHelloWorld").V;
-                        invokestatic(Simple, "main").V;
-                		ret.V;
-                	}
                 }
+                                
                 """, config);
 
         var generatedCode = backend.toJasmin(result);
