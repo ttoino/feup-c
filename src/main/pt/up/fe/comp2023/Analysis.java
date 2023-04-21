@@ -183,7 +183,7 @@ public class Analysis implements JmmAnalysis {
                     || (typesMatch(type1, type2) || typesMatch(type2, type1)) && in(UNIVERSAL_OPS, op)))
                 error(node, "Cannot use '" + op + "' on expressions of type '" + type1 + "' and '" + type2 + "'");
 
-            node.put("type", type1);
+            node.put("type", type2.equals("*") ? type2 : type1);
             if (in(COMPARISON_OPS, op))
                 node.put("type", "boolean");
 
