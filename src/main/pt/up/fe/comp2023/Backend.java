@@ -268,6 +268,12 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
+    private String buildJasminArgLoadInstruction(Element arg, HashMap<String, Descriptor> varTable, List<Report> reports) {
+        var sb = new StringBuilder();
+
+        return sb.toString();
+    }
+
     private String buildJasminCallInstruction(CallInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
 
@@ -292,8 +298,7 @@ public class Backend implements JasminBackend {
 
                         LiteralElement literal = (LiteralElement) arg;
 
-                        sb.append('\t');
-                        switch (instruction.getReturnType().getTypeOfElement()) {
+                        switch (literal.getType().getTypeOfElement()) {
                             case INT32 -> {
                                 var value = literal.getLiteral();
 
@@ -380,7 +385,7 @@ public class Backend implements JasminBackend {
                         LiteralElement literal = (LiteralElement) arg;
 
                         sb.append('\t');
-                        switch (instruction.getReturnType().getTypeOfElement()) {
+                        switch (literal.getType().getTypeOfElement()) {
                             case INT32 -> {
                                 var value = literal.getLiteral();
 
@@ -629,8 +634,6 @@ public class Backend implements JasminBackend {
 
     private String buildJasminGetfieldOperation(GetFieldInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
-
-        instruction.show();
 
         var firstOperand = (Operand) instruction.getFirstOperand();
         var secondOperand = (Operand) instruction.getSecondOperand();

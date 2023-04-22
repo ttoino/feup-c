@@ -64,21 +64,27 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
-                import io;
-                                
+                import ioPlus;
                 Simple {
-                	.construct Simple().V {
-                		invokespecial(this, "<init>").V;
+                    .construct Simple().V {
+                        invokespecial(this, "<init>").V;
+                    }
+                                    
+                    .method public static main(args.array.String).V {
+                        invokestatic(ioPlus, "printHelloWorld").V;
+                        ret.V;
+                    }
+                                
+                	.method public foo(a.i32).i32 {
+                		b.i32 :=.i32 2.i32;
+                                
+                		c.i32 :=.i32 a.i32 +.i32 b.i32;
+                                
+                		ret.i32 c.i32;
                 	}
                                 
-                	.method public static main(args.array.String).V {
-                		test.Test :=.Test new(Test).Test;
-                		invokespecial(test.Test,"<init>").V;
-                		invokestatic(io, "printHelloWorld").V;
-                                
-                		ret.V;
-                	}
                 }
+                                
                 """, config);
 
         var generatedCode = backend.toJasmin(result);
