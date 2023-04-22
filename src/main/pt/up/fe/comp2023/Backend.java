@@ -17,11 +17,15 @@ public class Backend implements JasminBackend {
 
     private String superClassName;
 
+    private boolean debugMode;
+
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
 
         var config = ollirResult.getConfig();
         var reports = ollirResult.getReports();
+
+        this.debugMode = Boolean.parseBoolean(config.get("debug"));
 
         var ollirClass = ollirResult.getOllirClass();
 
@@ -62,7 +66,7 @@ public class Backend implements JasminBackend {
 
         var classAccessModifier = ollirClass.getClassAccessModifier();
         String modifier = classAccessModifier.name().toLowerCase();
-        if (classAccessModifier == AccessModifiers.DEFAULT) modifier = "public"; // TODO: this is made in order
+        if (classAccessModifier == AccessModifiers.DEFAULT) modifier = "public"; // HACK: this is made so the tests pass, it should not be like this
         sb.append(modifier);
         sb.append(' ').append(className).append('\n');
 
@@ -130,6 +134,9 @@ public class Backend implements JasminBackend {
             }
         }
 
+        if (this.debugMode)
+            method.show();
+
         StringBuilder sb = new StringBuilder();
 
         sb.append(".method ");
@@ -137,8 +144,11 @@ public class Backend implements JasminBackend {
         sb.append(this.buildJasminMethodHeader(method, reports));
 
         if (!method.isConstructMethod()) {
-            // TODO: remove when optimizing
-            sb.append("\t.limit locals 99").append('\n');
+
+            var varTable = method.getVarTable();
+
+            // TODO: change when optimizing
+            sb.append("\t.limit locals ").append(varTable.size() + 1).append('\n');
             sb.append("\t.limit stack 99").append('\n');
         }
 
@@ -196,7 +206,6 @@ public class Backend implements JasminBackend {
             sb.append(this.buildJasminInstruction(instruction, varTable, labels, reports)).append('\n');
 
             if (instruction.getInstType() == InstructionType.CALL && ((CallInstruction) instruction).getReturnType().getTypeOfElement() != ElementType.VOID) {
-
                 sb.append("\tpop\n");
             }
         }
@@ -301,48 +310,32 @@ public class Backend implements JasminBackend {
     private String buildJasminLoadOperandInstruction(Operand op, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
 
-        op.show();
-        op.getType().show();
-        System.out.println(op.getClass());
-        System.out.println(op.getName());
-
         var argDescriptor = varTable.get(op.getName());
         int argRegNum = argDescriptor.getVirtualReg();
 
-        switch (op.getType().getTypeOfElement()) {
-            case INT32, BOOLEAN -> sb.append('i');
-            case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
-            case VOID ->
-                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
-        }
+        // TODO: can be better (?)
+        if (op instanceof ArrayOperand arr) {
 
-        sb.append("load");
+            sb.append("aload");
 
-        sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum);
+            sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
 
-        if (op.getType().getTypeOfElement() == ElementType.ARRAYREF) {
-            System.out.println("Balls");
-            /*
-            sb.append('\n');
-
-            var arrType = (ArrayType) op.getType();
-            var arrOp = (ArrayOperand) op;
-
-            for (var elem : arrOp.getIndexOperands()) {
-                sb.append('\t');
-                sb.append(this.buildJasminLoadElementInstruction(elem, varTable, reports));
-                sb.append('\n');
+            for (var elem : arr.getIndexOperands()) {
+                sb.append('\t').append(this.buildJasminLoadElementInstruction(elem, varTable, reports)).append("\n");
             }
 
-            sb.append("\ta");
+            sb.append("\taiload");
+        } else {
             switch (op.getType().getTypeOfElement()) {
                 case INT32, BOOLEAN -> sb.append('i');
                 case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
                 case VOID ->
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
             }
+
             sb.append("load");
-             */
+
+            sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum);
         }
 
         return sb.toString();
@@ -710,12 +703,9 @@ public class Backend implements JasminBackend {
     }
 
     private String buildJasminSingleOpInstruction(SingleOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
-        var sb = new StringBuilder();
 
-        sb.append('\t');
-        sb.append(this.buildJasminLoadElementInstruction(instruction.getSingleOperand(), varTable, reports));
-
-        return sb.toString();
+        return '\t' +
+                this.buildJasminLoadElementInstruction(instruction.getSingleOperand(), varTable, reports);
     }
 
     private String buildJasminTypeDescriptor(Type type, List<Report> reports) {
