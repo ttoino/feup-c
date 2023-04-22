@@ -64,25 +64,29 @@ public class Launcher {
         Backend backend = new Backend();
 
         OllirResult result = new OllirResult("""
-                import ioPlus;
                 Simple {
-                    .construct Simple().V {
-                        invokespecial(this, "<init>").V;
-                    }
-                                    
-                    .method public static main(args.array.String).V {
-                        invokestatic(ioPlus, "printHelloWorld").V;
-                        ret.V;
-                    }
-                                
-                	.method public foo(a.i32).i32 {
-                		b.i32 :=.i32 2.i32;
-                                
-                		c.i32 :=.i32 a.i32 +.i32 b.i32;
-                                
-                		ret.i32 c.i32;
+                	.construct Simplez().V {
+                		invokespecial(this, "<init>").V;
                 	}
-                                
+                	
+                	.method public sum(A.array.i32, B.array.i32).array.i32 {
+                		t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
+                		C.array.i32 :=.array.i32 new(array, t1.i32).array.i32;
+                		i.i32 :=.i32 0.i32;
+                		
+                		Loop:
+                			t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
+                			if (i.i32 >=.bool t1.i32) goto End;
+                			
+                			t2.i32 :=.i32 $1.A[i.i32].i32;
+                			t3.i32 :=.i32 $2.B[i.i32].i32;
+                			t4.i32 :=.i32 t2.i32 +.i32 t3.i32;
+                			C[i.i32].i32 :=.i32 t4.i32;
+                			i.i32 :=.i32 i.i32 +.i32 1.i32;
+                			goto Loop;
+                		End:
+                			ret.array.i32 C.array.i32;
+                	}
                 }
                                 
                 """, config);
