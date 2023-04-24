@@ -7,6 +7,7 @@ import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.ReportType;
 import pt.up.fe.comp2023.analysis.Analysis;
+import pt.up.fe.comp2023.ollir.Optimizer;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsLogs;
 import pt.up.fe.specs.util.SpecsSystem;
@@ -58,8 +59,10 @@ public class Launcher {
 
         if (reports(semanticsResult.getReports())) return;
 
-        Optimization optimization = new Optimization();
-        OllirResult ollirResult = optimization.toOllir(semanticsResult);
+        Optimizer optimizer = new Optimizer();
+        semanticsResult = optimizer.optimize(semanticsResult);
+        OllirResult ollirResult = optimizer.toOllir(semanticsResult);
+        ollirResult = optimizer.optimize(ollirResult);
 
         if (reports(ollirResult.getReports())) return;
 

@@ -8,36 +8,30 @@ public class OllirUtils {
     private static int temporaryVarCounter = 0;
 
     public static String getNextTemp() {
-        temporaryVarCounter++;
-        return t + temporaryVarCounter;
+        return "__temp__" + ++temporaryVarCounter;
+    }
+
+    public static String toOllirType(Type type) {
+        return toOllirType(type.print());
     }
 
     public static String toOllirType(String type) {
-        return (type.isArray() ? "array." : "") + switch (type.getName()) {
-            case "void", "static void" -> "V";
+        StringBuilder s = new StringBuilder();
+
+        while (type.contains("[]")) {
+            s.append("array.");
+            type = type.replace("[]", "");
+        }
+
+        return s.append(switch (type) {
+            case "void" -> "V";
             case "byte", "short", "int", "long", "Integer" -> "i32";
             case "boolean" -> "bool";
-            default -> type.getName();
-        };
+            default -> type;
+        }).toString();
     }
 
-    public static String getCode(String value, Type type) {
-        return value + "." + getCode(type);
-    }
-
-    public static String getCode(Type type) {
-        StringBuilder name = new StringBuilder();
-
-        if (type.isArray())
-            name.append("array.");
-
-        name.append(toOllirType(type.getName()));
-
-        return name.toString();
-    }
-
-    public static Type getType(JmmNode jmmNode) {
-        boolean isArray = jmmNode.getAttributes().contains("isArray") && jmmNode.get("isArray").equals("true");
-        return new Type(jmmNode.get("value"), isArray);
+    public static String toOllirSymbol(Symbol symbol) {
+        return symbol.getName() + "." + toOllirType(symbol.getType());
     }
 }
