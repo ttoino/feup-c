@@ -1,15 +1,19 @@
 package pt.up.fe.comp2023;
 
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
+import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
+import pt.up.fe.comp.jmm.report.ReportType;
+import pt.up.fe.comp2023.analysis.Analysis;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsLogs;
 import pt.up.fe.specs.util.SpecsSystem;
 
 import java.io.File;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,10 +44,7 @@ public class Launcher {
         JmmParserResult parserResult = parser.parse(code, config);
 
         // Check if there are parsing errors
-        for (Report report : parserResult.getReports())
-            System.err.println(report.getLine() + ":" + report.getColumn() + " " + report.getMessage());
-
-        if (!parserResult.getReports().isEmpty()) return;
+        if (reports(parserResult.getReports())) return;
 
         // ... add remaining stages
         Analysis analysis = new Analysis();
@@ -52,14 +53,10 @@ public class Launcher {
         System.out.println("\n====================================== AST =====================================\n");
         System.out.println(semanticsResult.getRootNode().toTree());
 
-        // Check if there are semantic errors
-        for (Report report : semanticsResult.getReports())
-            System.err.println(report.getLine() + ":" + report.getColumn() + " " + report.getMessage());
-
         System.out.println("\n================================= SYMBOL TABLE =================================\n");
         System.out.println(semanticsResult.getSymbolTable().print());
 
-        if (!semanticsResult.getReports().isEmpty()) return;
+        if (reports(semanticsResult.getReports())) return;
 
         Backend backend = new Backend();
 
@@ -91,14 +88,11 @@ public class Launcher {
                                 
                 """, config);
 
-        var generatedCode = backend.toJasmin(result);
+        JasminResult jasminResult = backend.toJasmin(result);
 
-        for (Report report : generatedCode.getReports())
-            System.err.println(report.getMessage());
+        if (reports(jasminResult.getReports())) return;
 
-        if (!generatedCode.getReports().isEmpty()) return;
-
-        System.out.println(generatedCode.getJasminCode());
+        System.out.println(jasminResult.getJasminCode());
     }
 
     private static Map<String, String> parseArgs(String[] args) {
@@ -117,6 +111,23 @@ public class Launcher {
         config.put("debug", "false");
 
         return config;
+    }
+
+    private static boolean reports(Collection<Report> reports) {
+        boolean hasErrors = false;
+
+        for (Report report : reports) {
+            hasErrors |= report.getType() == ReportType.ERROR;
+            var out = report.getType() == ReportType.ERROR || report.getType() == ReportType.WARNING ? System.err : System.out;
+            var type = report.getType().toString().toUpperCase();
+            var stage = report.getStage().toString().toUpperCase();
+            var line = report.getLine() == -1 ? "" : ":" + report.getLine();
+            var column = report.getColumn() == -1 ? "" : ":" + report.getColumn();
+
+            out.println(type + "@" + stage + line + column + " " + report.getMessage());
+        }
+
+        return hasErrors;
     }
 
 }
