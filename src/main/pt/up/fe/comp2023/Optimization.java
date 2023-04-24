@@ -43,16 +43,7 @@ public class Optimization implements JmmOptimization {
         emit("\n");
     }
 
-    private String toOllirType(Type type) {
-        return (type.isArray() ? "array." : "") + switch (type.getName()) {
-            case "void" -> "V";
-            case "byte" -> "i8";
-            case "short" -> "i16";
-            case "int" -> "i32";
-            case "long" -> "i64";
-            default -> type.getName();
-        };
-    }
+
 
     private String toOllirSymbol(Symbol symbol) {
         return symbol.getName() + "." + toOllirType(symbol.getType());
