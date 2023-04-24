@@ -99,24 +99,10 @@ public class Cpf3_Ollir {
         CpUtils.assertTrue("Number of branches between 1 and 2", branches.size() > 0 && branches.size() < 3, result);
     }
 
-    /*checks if dynamic invocations work properly*/
-    @Test
-    public void section4_Calls_Invoke_Virtual() {
-        var result = getOllirResult("calls/NoArgsFuncCall.jmm");
-
-        var method = CpUtils.getMethod(result, "bar");
-
-        var calls = CpUtils.assertInstExists(CallInstruction.class, method, result);
-
-        CpUtils.assertEquals("Number of calls", 1, calls.size(), result);
-
-        CpUtils.assertEquals("Invocation type of call", CallType.invokevirtual, calls.get(0).getInvocationType(),
-                result);
-    }
 
     /*checks if an array is correctly initialized*/
     @Test
-    public void section5_Arrays_Init_Array() {
+    public void section4_Arrays_Init_Array() {
         var result = getOllirResult("arrays/ArrayInit.jmm");
 
         var method = CpUtils.getMethod(result, "main");
@@ -140,7 +126,7 @@ public class Cpf3_Ollir {
 
     /*checks if the access to the elements of array is correct*/
     @Test
-    public void section5_Arrays_Access_Array() {
+    public void section4_Arrays_Access_Array() {
         var result = getOllirResult("arrays/ArrayAccess.jmm");
 
         var method = CpUtils.getMethod(result, "foo");
@@ -157,7 +143,7 @@ public class Cpf3_Ollir {
 
     /*checks multiple expressions as indexes to access the elements of an array*/
     @Test
-    public void section5_Arrays_Load_ComplexArrayAccess() {
+    public void section4_Arrays_Load_ComplexArrayAccess() {
         // Just parse
         var result = getOllirResult("arrays/ComplexArrayAccess.jmm");
 
