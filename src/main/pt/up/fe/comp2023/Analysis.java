@@ -348,7 +348,7 @@ public class Analysis implements JmmAnalysis {
 
             node.put("type", type + "[]");
 
-            if (typesMatch(index, "int"))
+            if (!typesMatch(index, "int"))
                 error(node, "Cannot create new array with expression of type '" + index + "' as length");
 
             return context;
