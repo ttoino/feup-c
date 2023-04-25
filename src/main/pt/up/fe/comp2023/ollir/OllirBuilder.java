@@ -46,9 +46,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("ImportStatement", this::visitImportDeclaration);
         addVisit("ConstructorDeclaration", this::visitConstructorDeclaration);
         addVisit("FieldDeclaration", this::visitFieldDeclaration);
+        addVisit("VariableDeclaration", this::visitVariableDeclaration);
 
         // Statement
-        addVisit("StatementBlock", this::visitChildren);
         addVisit("IfStatement", this::doNothing);
         addVisit("WhileStatement", this::doNothing);
         addVisit("DoStatement", this::doNothing);
@@ -59,10 +59,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("BreakStatement", this::doNothing);
         addVisit("ContinueStatement", this::doNothing);
         addVisit("ExpressionStatement", this::visitExpressionStatement);
-        addVisit("AssignmentStatement", this::doNothing);
 
         // Expression
-        addVisit("ExplicitPriority", this::visitChildren);
+        addVisit("ExplicitPriority", this::visitExplicitPriority);
         addVisit("NewObject", this::visitNewObject);
         addVisit("NewArray", this::visitChildren);
         addVisit("MethodCall", this::visitMethodCall);
@@ -81,6 +80,15 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     private void emitInvokeSpecialInit(int indentation, String symbol) {
         emitLine(indentation, "invokespecial(" + symbol + ", \"<init>\").V;");
+    }
+
+    protected String visitExplicitPriority(JmmNode node, Integer indentation) {
+        var child = node.getChildren().get(0);
+
+        if (node.getOptional("topLevel").isPresent())
+            child.put("topLevel", "true");
+
+        return visit(child, indentation);
     }
 
     protected String visitNewObject(JmmNode node, Integer indentation) {
@@ -194,6 +202,27 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         return null;
     }
 
+    protected String visitVariableDeclaration(JmmNode node, Integer indentation) {
+        if (node.getNumChildren() < 2)
+            return null;
+
+        var type = OllirUtils.toOllirType(node.get("type"));
+        var name = node.get("id") + "." + type;
+        var rhsNode = node.getJmmChild(1);
+        rhsNode.put("topLevel", "true");
+        var rhs = visit(rhsNode, indentation);
+
+        if (rhs.endsWith("*"))
+            rhs = rhs.substring(0, rhs.length() - 1) + type;
+
+        emitLine(indentation, name, " :=.", type, " ", rhs, ";");
+
+        if (rhs.startsWith("new"))
+            emitInvokeSpecialInit(indentation, name);
+
+        return null;
+    }
+
     protected String visitImportDeclaration(JmmNode node, Integer indentation) {
         emit("import ");
 
@@ -279,15 +308,21 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitPropertyAccess(JmmNode node, Integer indentation) {
-        var lhs = visit(node.getJmmChild(0), indentation);
+        var lhsNode = node.getJmmChild(0);
+        var lhs = visit(lhsNode, indentation);
         var type = OllirUtils.toOllirType(node.get("type"));
         var member = node.get("member");
 
+        var line = "getfield(" + lhs + ", " + member + "." + type + ")." + type;
+
+        if (lhsNode.get("type").endsWith("[]"))
+            line = "arraylength(" + lhs + ")." + type;
+
         if (node.getOptional("topLevel").isPresent())
-            return "getfield(" + lhs + ", " + member + "." + type + ")." + type;
+            return line;
 
         var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=.", type, " getfield(", lhs, ", ", member, "." + type + ")." + type + ";");
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
         return temp;
     }
@@ -366,6 +401,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var rhs = visit(rhsNode, indentation);
 
         var type = OllirUtils.toOllirType(node.get("type"));
+
+        if (rhs.endsWith("*"))
+            rhs = rhs.substring(0, rhs.length() - 1) + type;
 
         emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
 
