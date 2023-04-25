@@ -3,7 +3,7 @@ package pt.up.fe.comp2023.ollir;
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
-import pt.up.fe.comp2023.JmmSymbolTable;
+import pt.up.fe.comp2023.analysis.JmmSymbolTable;
 
 import java.util.ArrayList;
 import java.util.Arrays;
