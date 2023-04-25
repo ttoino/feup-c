@@ -7,6 +7,7 @@ import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.ReportType;
 import pt.up.fe.comp2023.analysis.Analysis;
+import pt.up.fe.comp2023.ollir.Optimizer;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsLogs;
 import pt.up.fe.specs.util.SpecsSystem;
@@ -58,37 +59,18 @@ public class Launcher {
 
         if (reports(semanticsResult.getReports())) return;
 
+        Optimizer optimizer = new Optimizer();
+        semanticsResult = optimizer.optimize(semanticsResult);
+        OllirResult ollirResult = optimizer.toOllir(semanticsResult);
+        ollirResult = optimizer.optimize(ollirResult);
+
+        if (reports(ollirResult.getReports())) return;
+
+        System.out.println("\n===================================== OLLIR ====================================\n");
+        System.out.println(ollirResult.getOllirCode());
+
         Backend backend = new Backend();
-
-        OllirResult result = new OllirResult("""
-                Simple {
-                	.construct Simplez().V {
-                		invokespecial(this, "<init>").V;
-                	}
-                	
-                	.method public sum(A.array.i32, B.array.i32).array.i32 {
-                		t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                		C.array.i32 :=.array.i32 new(array, t1.i32).array.i32;
-                		i.i32 :=.i32 0.i32;
-                		
-                		Loop:
-                			t1.i32 :=.i32 arraylength($1.A.array.i32).i32;
-                			if (i.i32 >=.bool t1.i32) goto End;
-                			
-                			t2.i32 :=.i32 $1.A[i.i32].i32;
-                			t3.i32 :=.i32 $2.B[i.i32].i32;
-                			t4.i32 :=.i32 t2.i32 +.i32 t3.i32;
-                			C[i.i32].i32 :=.i32 t4.i32;
-                			i.i32 :=.i32 i.i32 +.i32 1.i32;
-                			goto Loop;
-                		End:
-                			ret.array.i32 C.array.i32;
-                	}
-                }
-                                
-                """, config);
-
-        JasminResult jasminResult = backend.toJasmin(result);
+        JasminResult jasminResult = backend.toJasmin(ollirResult);
 
         if (reports(jasminResult.getReports())) return;
 
