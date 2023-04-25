@@ -18,6 +18,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     private final JmmSymbolTable table;
 
+    private boolean visitedConstructor = false;
+
     public OllirBuilder(JmmSymbolTable table) {
         this.table = table;
     }
@@ -127,6 +129,12 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         visitChildren(node, indentation + 4);
 
+        if (!visitedConstructor) {
+            emitLine(indentation + 4, ".construct ", table.getClassName(), "().V {");
+            emitInvokeSpecialInit(indentation + 8, "this");
+            emitLine(indentation + 4, "}");
+        }
+
         emitLine(indentation, "}");
 
         return null;
@@ -149,6 +157,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitConstructorDeclaration(JmmNode node, Integer indentation) {
+        visitedConstructor = true;
+
         var method = table.getMethod("<constructor>");
         var className = node.get("className");
         emitLine(indentation,
@@ -157,7 +167,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
                 className,
                 "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
                 OllirUtils.toOllirType(method.getReturnType()), " {");
-        emitLine(indentation + 4, "invokespecial(this, \"<init>\").V;");
+        emitInvokeSpecialInit(indentation + 4, "this");
 
         visitChildren(node, indentation + 4);
 
