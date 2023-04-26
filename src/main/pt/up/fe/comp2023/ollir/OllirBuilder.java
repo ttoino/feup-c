@@ -68,8 +68,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("ArgumentList", this::visitArgumentList);
         addVisit("PropertyAccess", this::visitPropertyAccess);
         addVisit("ArrayAccess", this::visitArrayAccess);
-        addVisit("UnaryPostOp", this::visitChildren);
-        addVisit("UnaryPreOp", this::visitChildren);
+        addVisit("UnaryPostOp", this::visitUnaryPostOp);
+        addVisit("UnaryPreOp", this::visitUnaryPreOp);
         addVisit("BinaryOp", this::visitBinaryOp);
         addVisit("TernaryOp", this::visitChildren);
         addVisit("AssignmentExpression", this::visitAssignment);
@@ -260,11 +260,49 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var rhs = visit(jmmNode.getJmmChild(1), indentation);
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
-
         var operator = jmmNode.get("op") + "." + type;
-        var temp = OllirUtils.getNextTemp() + "." + type;
 
-        emitLine(indentation, temp, " :=.", type, " ", lhs, " ", operator, " ", rhs, ";");
+        var line = lhs + " " + operator + " " + rhs;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    private String visitUnaryPreOp(JmmNode jmmNode, Integer indentation) {
+        var rhs = visit(jmmNode.getJmmChild(0), indentation);
+
+        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var operator = jmmNode.get("op") + "." + type;
+
+        var line = operator + " " + rhs;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    private String visitUnaryPostOp(JmmNode jmmNode, Integer indentation) {
+        var lhs = visit(jmmNode.getJmmChild(0), indentation);
+
+        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var operator = jmmNode.get("op") + "." + type;
+
+        var line = lhs + " " + operator;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
         return temp;
     }
