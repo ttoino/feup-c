@@ -49,9 +49,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("VariableDeclaration", this::visitVariableDeclaration);
 
         // Statement
-        addVisit("IfStatement", this::doNothing);
-        addVisit("WhileStatement", this::doNothing);
-        addVisit("DoStatement", this::doNothing);
+        addVisit("IfStatement", this::visitIfStatement);
+        addVisit("WhileStatement", this::visitWhileStatement);
+        addVisit("DoStatement", this::visitDoWhileStatement);
         addVisit("ForStatement", this::doNothing);
         addVisit("ForEachStatement", this::doNothing);
         addVisit("SwitchStatement", this::doNothing);
@@ -80,6 +80,54 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     private void emitInvokeSpecialInit(int indentation, String symbol) {
         emitLine(indentation, "invokespecial(" + symbol + ", \"<init>\").V;");
+    }
+
+    protected String visitIfStatement(JmmNode node, Integer indentation) {
+        var condition = visit(node.getChildren().get(0), indentation);
+        var ifLabels = OllirUtils.getNextIfLabels();
+
+        emitLine(indentation, "if(!.bool " + condition + ") goto " + ifLabels[0] + ";");
+
+        visit(node.getChildren().get(1), indentation + 4);
+
+        emitLine(indentation + 4, "goto " + ifLabels[1] + ";");
+        emitLine(indentation, ifLabels[0] + ":");
+
+        visit(node.getChildren().get(2), indentation + 4);
+
+        emitLine(indentation, ifLabels[1] + ":");
+
+        return null;
+    }
+
+    protected String visitWhileStatement(JmmNode node, Integer indentation) {
+        var condition = visit(node.getChildren().get(0), indentation);
+        var whileLabels = OllirUtils.getNextWhileLabels();
+
+        emitLine(indentation, whileLabels[0] + ":");
+        emitLine(indentation + 4, "if(!.bool " + condition + ") goto " + whileLabels[1] + ";");
+
+        visit(node.getChildren().get(1), indentation + 4);
+
+        emitLine(indentation + 4, "goto " + whileLabels[0] + ";");
+        emitLine(indentation, whileLabels[1] + ":");
+
+        return null;
+    }
+
+    protected String visitDoWhileStatement(JmmNode node, Integer indentation) {
+        var doWhileLabel = OllirUtils.getNextDoWhileLabel();
+
+        emitLine(indentation, doWhileLabel + ":");
+
+        visit(node.getChildren().get(0), indentation + 4);
+
+        var conditionNode = node.getChildren().get(1);
+        conditionNode.put("topLevel", "true");
+        var condition = visit(conditionNode, indentation);
+        emitLine(indentation + 4, "if(" + condition + ") goto " + doWhileLabel + ";");
+
+        return null;
     }
 
     protected String visitExplicitPriority(JmmNode node, Integer indentation) {
@@ -278,6 +326,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
         var operator = jmmNode.get("op") + "." + type;
+        if (operator.startsWith("-."))
+            operator = "0.i32 " + operator;
 
         var line = operator + " " + rhs;
 

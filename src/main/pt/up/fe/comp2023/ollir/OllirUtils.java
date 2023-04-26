@@ -6,9 +6,24 @@ import pt.up.fe.comp.jmm.ast.JmmNode;
 
 public class OllirUtils {
     private static int temporaryVarCounter = 0;
+    private static int ifLabelCounter = 0;
+    private static int whileLabelCounter = 0;
+    private static int doWhileLabelCounter = 0;
 
     public static String getNextTemp() {
-        return "__temp__" + ++temporaryVarCounter;
+        return "__temp__" + temporaryVarCounter++;
+    }
+
+    public static String[] getNextIfLabels() {
+        return new String[] { "__else__" + ifLabelCounter, "__endif__" + ifLabelCounter++ };
+    }
+
+    public static String[] getNextWhileLabels() {
+        return new String[] { "__while__" + whileLabelCounter, "__endwhile__" + whileLabelCounter++ };
+    }
+
+    public static String getNextDoWhileLabel() {
+        return "__dowhile__" + doWhileLabelCounter++;
     }
 
     public static String toOllirType(Type type) {
