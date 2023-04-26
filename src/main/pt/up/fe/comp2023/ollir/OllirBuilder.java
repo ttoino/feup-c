@@ -56,6 +56,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("ForEachStatement", this::doNothing);
         addVisit("SwitchStatement", this::doNothing);
         addVisit("ReturnStatement", this::visitReturnStatement);
+        // TODO
         addVisit("BreakStatement", this::doNothing);
         addVisit("ContinueStatement", this::doNothing);
         addVisit("ExpressionStatement", this::visitExpressionStatement);
@@ -213,14 +214,18 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     protected String visitMethodDeclaration(JmmNode node, Integer indentation) {
         var method = table.getMethod(node.get("methodName"));
+        var returnType = OllirUtils.toOllirType(method.getReturnType());
         emitLine(indentation,
                 ".method ",
                 String.join(" ", method.getModifiers()), " ",
                 method.getName(),
                 "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
-                OllirUtils.toOllirType(method.getReturnType()), " {");
+                returnType, " {");
 
         visitChildren(node, indentation + 4);
+
+        if (!node.getJmmChild(node.getNumChildren() - 1).getKind().equals("ReturnStatement"))
+            emitLine(indentation + 4, "ret.", returnType, ";");
 
         emitLine(indentation, "}");
 
