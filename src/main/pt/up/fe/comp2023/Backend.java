@@ -16,6 +16,9 @@ public class Backend implements JasminBackend {
 
     private boolean debugMode;
 
+    private static final int DEFAULT_METHOD_STACK_SIZE = 99;
+    private int currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
+
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
 
@@ -134,9 +137,15 @@ public class Backend implements JasminBackend {
 
             var varTable = method.getVarTable();
 
+            var numLocals = varTable.size();
+
+            // if the "this" reference is not used in the method, it will not be loaded into the varTable
+            if (!method.isStaticMethod() && !method.getVarTable().containsKey("this")) numLocals++;
+
             // TODO: change when optimizing
-            sb.append("\t.limit locals ").append(varTable.size()).append('\n');
-            sb.append("\t.limit stack 99").append('\n');
+            sb.append("\t.limit locals ").append(numLocals).append('\n');
+            sb.append("\t.limit stack ").append(this.currentMethodStackSize).append('\n');
+            this.currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
         }
 
         sb.append(this.buildJasminMethodBody(method, reports));
@@ -220,30 +229,21 @@ public class Backend implements JasminBackend {
 
     private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
-        switch (instruction.getInstType()) {
-            case ASSIGN:
-                return this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
-            case CALL:
-                return this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
-            case GOTO:
-                return this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
-            case BRANCH:
-                break;
-            case RETURN:
-                return this.buildJasminReturnInstruction((ReturnInstruction) instruction, varTable, reports);
-            case PUTFIELD:
-                return this.buildJasminPutfieldOperation((PutFieldInstruction) instruction, varTable, reports);
-            case GETFIELD:
-                return this.buildJasminGetfieldOperation((GetFieldInstruction) instruction, varTable, reports);
-            case UNARYOPER:
-                return this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) instruction, varTable, reports);
-            case BINARYOPER:
-                return this.buildJasminBinaryOperatorInstruction((BinaryOpInstruction) instruction, varTable, reports);
-            case NOPER:
-                return this.buildJasminSingleOpInstruction((SingleOpInstruction) instruction, varTable, reports);
-        }
+        return switch (instruction.getInstType()) {
+            case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
+            case CALL -> this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
+            case GOTO -> this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
+            case BRANCH -> this.buildJasminBranchInstruction((OpCondInstruction) instruction, varTable, reports);
+            case RETURN -> this.buildJasminReturnInstruction((ReturnInstruction) instruction, varTable, reports);
+            case PUTFIELD -> this.buildJasminPutfieldOperation((PutFieldInstruction) instruction, varTable, reports);
+            case GETFIELD -> this.buildJasminGetfieldOperation((GetFieldInstruction) instruction, varTable, reports);
+            case UNARYOPER ->
+                    this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) instruction, varTable, reports);
+            case BINARYOPER ->
+                    this.buildJasminBinaryOperatorInstruction((BinaryOpInstruction) instruction, varTable, reports);
+            case NOPER -> this.buildJasminSingleOpInstruction((SingleOpInstruction) instruction, varTable, reports);
+        };
 
-        return "\t;no-op";
     }
 
     private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
@@ -302,7 +302,7 @@ public class Backend implements JasminBackend {
             sb.append("iconst_").append(value);
         } else if (value < 128) {
             sb.append("bipush ").append(value);
-        } else if (value < 32767) {
+        } else if (value < 32768) {
             sb.append("sipush ").append(value);
         } else {
             sb.append("ldc ").append(value);
@@ -378,6 +378,7 @@ public class Backend implements JasminBackend {
         } else {
             sb.append(this.buildJasminLoadOperandInstruction((Operand) elem, varTable, reports));
         }
+        this.currentMethodStackSize++;
 
         return sb.toString();
     }
@@ -535,6 +536,10 @@ public class Backend implements JasminBackend {
 
     private String buildJasminGotoInstruction(GotoInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         return "\tgoto " + instruction.getLabel();
+    }
+
+    private String buildJasminBranchInstruction(CondBranchInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+        return "nop\n";
     }
 
     private String buildJasminReturnInstruction(ReturnInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
