@@ -448,6 +448,7 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
 
     protected String checkComplexType(JmmNode node, String context) {
         var type = node.get("id");
+        node.put("type", type);
 
         if (!type.equals(table.getClassName()) && !in(UNIVERSAL_IMPORTS, type) && table.getImports().stream().map(i -> {
             var split = i.split("\\.");
@@ -484,10 +485,11 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
 
     private void error(JmmNode node, String message) {
         reports.add(new Report(
-                ReportType.ERROR,
-                Stage.SEMANTIC,
-                Integer.parseInt(node.get("lineStart")),
-                Integer.parseInt(node.get("colStart")),
-                message));
+            ReportType.ERROR,
+            Stage.SEMANTIC,
+            Integer.parseInt(node.get("lineStart")),
+            Integer.parseInt(node.get("colStart")),
+            message)
+        );
     }
 }

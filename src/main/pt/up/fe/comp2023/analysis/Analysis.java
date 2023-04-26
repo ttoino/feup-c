@@ -18,6 +18,8 @@ public class Analysis implements JmmAnalysis {
         var table = new JmmSymbolTable(jmmParserResult.getRootNode());
         List<Report> reports = new ArrayList<>();
 
+        reports.add(new Report(ReportType.DEBUG, Stage.SEMANTIC, -1, -1, "Generated AST:\n" + jmmParserResult.getRootNode().toTree()));
+
         var main = table.getMethod("main");
         if (main != null) {
             if (!main.getReturnType().print().equals("void"))
@@ -29,6 +31,9 @@ public class Analysis implements JmmAnalysis {
         }
 
         new SemanticAnalysisVisitor(table, reports).visit(jmmParserResult.getRootNode());
+
+        reports.add(new Report(ReportType.DEBUG, Stage.SEMANTIC, -1, -1, "Annotated AST:\n" + jmmParserResult.getRootNode().toTree()));
+        reports.add(new Report(ReportType.DEBUG, Stage.SEMANTIC, -1, -1, "Generated symbol table:\n" + table.print()));
 
         return new JmmSemanticsResult(
             jmmParserResult.getRootNode(),

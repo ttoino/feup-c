@@ -63,11 +63,11 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         // Expression
         addVisit("ExplicitPriority", this::visitExplicitPriority);
         addVisit("NewObject", this::visitNewObject);
-        addVisit("NewArray", this::visitChildren);
+        addVisit("NewArray", this::visitNewArray);
         addVisit("MethodCall", this::visitMethodCall);
         addVisit("ArgumentList", this::visitArgumentList);
         addVisit("PropertyAccess", this::visitPropertyAccess);
-        addVisit("ArrayAccess", this::visitChildren);
+        addVisit("ArrayAccess", this::visitArrayAccess);
         addVisit("UnaryPostOp", this::visitChildren);
         addVisit("UnaryPreOp", this::visitChildren);
         addVisit("BinaryOp", this::visitBinaryOp);
@@ -106,6 +106,21 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var temp = OllirUtils.getNextTemp() + "." + type;
         emitLine(indentation, temp, " :=." + type + " ", line, ";");
         emitInvokeSpecialInit(indentation, temp);
+
+        return temp;
+    }
+
+    protected String visitNewArray(JmmNode node, Integer indentation) {
+        var type = OllirUtils.toOllirType(node.get("type"));
+        var size = visit(node.getJmmChild(1), indentation);
+
+        var line = "new(array, " + size + ")." + type;
+
+        if (node.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=." + type + " ", line, ";");
 
         return temp;
     }
@@ -217,7 +232,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         emitLine(indentation, name, " :=.", type, " ", rhs, ";");
 
-        if (rhs.startsWith("new"))
+        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
             emitInvokeSpecialInit(indentation, name);
 
         return null;
@@ -296,14 +311,21 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         return switch (type) {
             case "String" -> {
+                var line = "ldc(" + value + ").String";
+
+                if (node.getOptional("topLevel").isPresent())
+                    yield line;
+
                 var temp = OllirUtils.getNextTemp() + ".String";
-                emitLine(indentation, temp, " :=.String ldc(", value, ").String;");
+                emitLine(indentation, temp, " :=.String " + line + ";");
                 yield temp;
             }
 
-            case "boolean" -> value.equals("true") ? "1" : "0";
+            case "bool" -> (value.equals("true") ? "1" : "0") + ".bool";
 
-            default -> value + "." + type;
+            case "char" -> ((int) value.charAt(value.length() - 1)) + ".i32";
+
+            default -> value.split("\\.")[0] + "." + type;
         };
     }
 
@@ -321,6 +343,28 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         if (node.getOptional("topLevel").isPresent())
             return line;
 
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    protected String visitArrayAccess(JmmNode node, Integer indentation) {
+        var lhs = visit(node.getJmmChild(0), indentation);
+        var index = visit(node.getJmmChild(1), indentation);
+
+        if (Character.isDigit(index.charAt(0))) {
+            var temp = OllirUtils.getNextTemp() + ".i32";
+            emitLine(indentation, temp, " :=.i32 ", index, ";");
+            index = temp;
+        }
+
+        var line = lhs.replaceFirst("\\.array", "[" + index + "]");
+
+        if (node.getOptional("topLevel").isPresent())
+            return line;
+
+        var type = OllirUtils.toOllirType(node.get("type"));
         var temp = OllirUtils.getNextTemp() + "." + type;
         emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
@@ -407,7 +451,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
 
-        if (rhs.startsWith("new("))
+        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
             emitInvokeSpecialInit(indentation, lhs);
 
         return node.getOptional("topLevel").isPresent() ? null : lhs;
@@ -441,5 +485,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     public String getOllirCode() {
         return code.toString();
+    }
+
+    public List<Report> getReports() {
+        return reports;
     }
 }

@@ -25,7 +25,7 @@ public class OllirUtils {
 
         return s.append(switch (type) {
             case "void" -> "V";
-            case "byte", "short", "int", "long", "Integer" -> "i32";
+            case "byte", "short", "int", "long", "float", "double", "Integer" -> "i32";
             case "boolean" -> "bool";
             default -> type;
         }).toString();

@@ -6,12 +6,10 @@ import pt.up.fe.comp.jmm.jasmin.JasminBackend;
 import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
+import pt.up.fe.comp.jmm.report.ReportType;
 import pt.up.fe.comp.jmm.report.Stage;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 public class Backend implements JasminBackend {
 
@@ -23,7 +21,7 @@ public class Backend implements JasminBackend {
     public JasminResult toJasmin(OllirResult ollirResult) {
 
         var config = ollirResult.getConfig();
-        var reports = ollirResult.getReports();
+        List<Report> reports = new ArrayList<>();
 
         this.debugMode = Boolean.parseBoolean(config.get("debug"));
 
@@ -31,17 +29,13 @@ public class Backend implements JasminBackend {
 
         var jasminCode = this.buildJasminCode(ollirClass, reports, config.get("inputFile"));
 
+        reports.add(new Report(ReportType.DEBUG, Stage.GENERATION, -1, -1, "Generated Jasmin:\n" + jasminCode));
+
         return new JasminResult(ollirClass.getClassName(), jasminCode, reports, config);
     }
 
     private String buildJasminCode(ClassUnit ollirClass, List<Report> reports, String fileName) {
-
-        int initialNumberOfReports = reports.size();
         var jasminCode = this.buildJasminClass(ollirClass, reports, fileName);
-
-        if (reports.size() != initialNumberOfReports) {
-            return null;
-        }
 
         return "; class " + ollirClass.getClassName() + ", transpiled to jasmin\n" + jasminCode;
     }

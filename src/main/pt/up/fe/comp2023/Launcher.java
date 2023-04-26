@@ -1,5 +1,6 @@
 package pt.up.fe.comp2023;
 
+import jdk.jshell.execution.Util;
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
 import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
@@ -45,58 +46,67 @@ public class Launcher {
         JmmParserResult parserResult = parser.parse(code, config);
 
         // Check if there are parsing errors
-        if (reports(parserResult.getReports())) return;
+        if (reports(config, parserResult.getReports())) return;
 
         // ... add remaining stages
         Analysis analysis = new Analysis();
         JmmSemanticsResult semanticsResult = analysis.semanticAnalysis(parserResult);
 
-        System.out.println("\n====================================== AST =====================================\n");
-        System.out.println(semanticsResult.getRootNode().toTree());
-
-        System.out.println("\n================================= SYMBOL TABLE =================================\n");
-        System.out.println(semanticsResult.getSymbolTable().print());
-
-        if (reports(semanticsResult.getReports())) return;
+        if (reports(config, semanticsResult.getReports())) return;
 
         Optimizer optimizer = new Optimizer();
-        semanticsResult = optimizer.optimize(semanticsResult);
+
+        var optimize = Boolean.parseBoolean(config.get("optimize"));
+
+        if (optimize)
+            semanticsResult = optimizer.optimize(semanticsResult);
+
         OllirResult ollirResult = optimizer.toOllir(semanticsResult);
-        ollirResult = optimizer.optimize(ollirResult);
 
-        if (reports(ollirResult.getReports())) return;
+        if (optimize)
+            ollirResult = optimizer.optimize(ollirResult);
 
-        System.out.println("\n===================================== OLLIR ====================================\n");
-        System.out.println(ollirResult.getOllirCode());
+        if (reports(config, ollirResult.getReports())) return;
 
         Backend backend = new Backend();
         JasminResult jasminResult = backend.toJasmin(ollirResult);
 
-        if (reports(jasminResult.getReports())) return;
+        if (reports(config, jasminResult.getReports()) || code == null) return;
 
-        System.out.println(jasminResult.getJasminCode());
+        jasminResult.compile();
     }
 
     private static Map<String, String> parseArgs(String[] args) {
-        SpecsLogs.info("Executing with args: " + Arrays.toString(args));
-
-        // Check if there is at least one argument
-        if (args.length != 1) {
-            throw new RuntimeException("Expected a single argument, a path to an existing input file.");
-        }
-
-        // Create config
+        // Default config
         Map<String, String> config = new HashMap<>();
-        config.put("inputFile", args[0]);
         config.put("optimize", "false");
         config.put("registerAllocation", "-1");
         config.put("debug", "false");
 
+        for (var arg : args) {
+            if (arg.equals("-o") || arg.equals("--optimize"))
+                config.put("optimize", "true");
+            else if (arg.startsWith("-r=") || arg.startsWith("--registers="))
+                config.put("registerAllocation", arg.split("=")[1]);
+            else if (arg.equals("-d") || arg.equals("--debug"))
+                config.put("debug", "true");
+            else if (arg.startsWith("-i=") || arg.startsWith("--input="))
+                config.put("inputFile", arg.split("=")[1]);
+            else
+                System.err.println("Unknown argument '" + arg + "'.");
+        }
+
+        if (!config.containsKey("inputFile")) {
+            System.err.println("Missing input file.");
+            System.exit(1);
+        }
+
         return config;
     }
 
-    private static boolean reports(Collection<Report> reports) {
+    private static boolean reports(Map<String, String> config, Collection<Report> reports) {
         boolean hasErrors = false;
+        boolean debug = Boolean.parseBoolean(config.get("debug"));
 
         for (Report report : reports) {
             hasErrors |= report.getType() == ReportType.ERROR;
@@ -106,7 +116,8 @@ public class Launcher {
             var line = report.getLine() == -1 ? "" : ":" + report.getLine();
             var column = report.getColumn() == -1 ? "" : ":" + report.getColumn();
 
-            out.println(type + "@" + stage + line + column + " " + report.getMessage());
+            if (debug || report.getType() != ReportType.DEBUG)
+                out.println(type + "@" + stage + line + column + " " + report.getMessage());
         }
 
         return hasErrors;
