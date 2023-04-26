@@ -38,14 +38,32 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         emit("\n");
     }
 
+    private void emitInvokeSpecialInit(int indentation, String symbol) {
+        emitLine(indentation, "invokespecial(" + symbol + ", \"<init>\").V;");
+    }
+
+    public String getOllirCode() {
+        return code.toString();
+    }
+
+    public List<Report> getReports() {
+        return reports;
+    }
+
     @Override
     protected void buildVisitor() {
         setDefaultVisit(this::visitChildren);
+
+        addVisit("ImportStatement", this::visitImportStatement);
+
         addVisit("ClassDeclaration", this::visitClassDeclaration);
+
         addVisit("MethodDeclaration", this::visitMethodDeclaration);
-        addVisit("ImportStatement", this::visitImportDeclaration);
-        addVisit("ConstructorDeclaration", this::visitConstructorDeclaration);
         addVisit("FieldDeclaration", this::visitFieldDeclaration);
+        addVisit("ConstructorDeclaration", this::visitConstructorDeclaration);
+
+        addVisit("ArgumentList", this::visitArgumentList);
+
         addVisit("VariableDeclaration", this::visitVariableDeclaration);
 
         // Statement
@@ -66,21 +84,157 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("NewObject", this::visitNewObject);
         addVisit("NewArray", this::visitNewArray);
         addVisit("MethodCall", this::visitMethodCall);
-        addVisit("ArgumentList", this::visitArgumentList);
         addVisit("PropertyAccess", this::visitPropertyAccess);
         addVisit("ArrayAccess", this::visitArrayAccess);
         addVisit("UnaryPostOp", this::visitUnaryPostOp);
         addVisit("UnaryPreOp", this::visitUnaryPreOp);
         addVisit("BinaryOp", this::visitBinaryOp);
-        addVisit("TernaryOp", this::visitChildren);
+        // TODO
+        addVisit("TernaryOp", this::doNothing);
         addVisit("AssignmentExpression", this::visitAssignment);
         addVisit("LiteralExpression", this::visitLiteral);
         addVisit("IdentifierExpression", this::visitIdentifier);
         addVisit("ThisExpression", this::visitThis);
     }
 
-    private void emitInvokeSpecialInit(int indentation, String symbol) {
-        emitLine(indentation, "invokespecial(" + symbol + ", \"<init>\").V;");
+    protected String visitChildren(JmmNode node, Integer indentation) {
+        StringBuilder sb = new StringBuilder();
+
+        for (var child: node.getChildren()) {
+            var s = visit(child, indentation);
+            if (s != null)
+                sb.append(s);
+        }
+
+        return sb.toString();
+    }
+
+    protected String doNothing(JmmNode node, Integer indentation) {
+        return null;
+    }
+
+    protected String visitImportStatement(JmmNode node, Integer indentation) {
+        emit("import ");
+
+        var classPackage = node.getObjectAsList("classPackage", String.class);
+
+        for (var _package : classPackage) {
+            emit(_package);
+            emit(".");
+        }
+
+        var className = node.get("className");
+        emit(className);
+        emit(";\n");
+
+        return null;
+    }
+
+    protected String visitClassDeclaration(JmmNode node, Integer indentation) {
+        emitIndentation(indentation);
+        emit(table.getClassName());
+
+        if (table.getSuper() != null)
+            emit(" extends ", table.getSuper());
+
+        emit(" {\n");
+
+        visitChildren(node, indentation + 4);
+
+        if (!visitedConstructor) {
+            emitLine(indentation + 4, ".construct ", table.getClassName(), "().V {");
+            emitInvokeSpecialInit(indentation + 8, "this");
+            emitLine(indentation + 4, "}");
+        }
+
+        emitLine(indentation, "}");
+
+        return null;
+    }
+
+    protected String visitMethodDeclaration(JmmNode node, Integer indentation) {
+        var method = table.getMethod(node.get("methodName"));
+        var returnType = OllirUtils.toOllirType(method.getReturnType());
+        emitLine(indentation,
+                ".method ",
+                String.join(" ", method.getModifiers()), " ",
+                method.getName(),
+                "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
+                returnType, " {");
+
+        visitChildren(node, indentation + 4);
+
+        if (!node.getJmmChild(node.getNumChildren() - 1).getKind().equals("ReturnStatement"))
+            emitLine(indentation + 4, "ret.", returnType, ";");
+
+        emitLine(indentation, "}");
+
+        return null;
+    }
+
+    protected String visitFieldDeclaration(JmmNode node, Integer indentation) {
+        var name = node.getJmmChild(0).get("id");
+        var type = node.getJmmChild(0).get("type");
+
+        if (indentation == 4)
+            emitLine(
+                    indentation,
+                    ".field private ",
+                    name, ".",
+                    OllirUtils.toOllirType(type),
+                    ";"
+            );
+        else
+            visit(node.getJmmChild(0), indentation);
+
+        return null;
+    }
+
+    protected String visitConstructorDeclaration(JmmNode node, Integer indentation) {
+        visitedConstructor = true;
+
+        var method = table.getMethod("<constructor>");
+        var className = node.get("className");
+        emitLine(indentation,
+                ".construct ",
+                String.join(" ", method.getModifiers()), " ",
+                className,
+                "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
+                OllirUtils.toOllirType(method.getReturnType()), " {");
+        emitInvokeSpecialInit(indentation + 4, "this");
+
+        visitChildren(node, indentation + 4);
+
+        emitLine(indentation, "}");
+
+        return null;
+    }
+
+    protected String visitArgumentList(JmmNode node, Integer indentation) {
+        return node.getChildren().stream()
+                .map(child -> ", " + visit(child, indentation))
+                .collect(Collectors.joining());
+    }
+
+    protected String visitVariableDeclaration(JmmNode node, Integer indentation) {
+        if (node.getNumChildren() < 2)
+            return null;
+
+        var type = OllirUtils.toOllirType(node.get("type"));
+        var name = node.get("id") + "." + type;
+        var rhsNode = node.getJmmChild(1);
+        rhsNode.put("topLevel", "true");
+        var rhs = visit(rhsNode, indentation);
+
+        if (rhs.endsWith("*"))
+            rhs = rhs.substring(0, rhs.length() - 1) + type;
+
+        emitLine(indentation, name, " :=.", type, " ", rhs, ";");
+
+        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
+            emitInvokeSpecialInit(indentation, name);
+
+        return null;
     }
 
     protected String visitIfStatement(JmmNode node, Integer indentation) {
@@ -117,16 +271,43 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitDoWhileStatement(JmmNode node, Integer indentation) {
-        var doWhileLabel = OllirUtils.getNextDoWhileLabel();
+        var doWhileLabels = OllirUtils.getNextDoWhileLabels();
 
-        emitLine(indentation, doWhileLabel + ":");
+        emitLine(indentation, doWhileLabels[0] + ":");
 
         visit(node.getChildren().get(0), indentation + 4);
 
         var conditionNode = node.getChildren().get(1);
         conditionNode.put("topLevel", "true");
         var condition = visit(conditionNode, indentation);
-        emitLine(indentation + 4, "if(" + condition + ") goto " + doWhileLabel + ";");
+        emitLine(indentation + 4, "if(" + condition + ") goto " + doWhileLabels[0] + ";");
+        emitLine(indentation, doWhileLabels[1] + ":");
+
+        return null;
+    }
+
+    protected String visitReturnStatement(JmmNode node, Integer indentation) {
+        var child = node.getJmmChild(0);
+        var s = visit(child, indentation);
+        var type = OllirUtils.toOllirType(child.get("type"));
+
+        if (s != null)
+            emitLine(indentation, "ret.", type, " ", s, ";");
+
+        return null;
+    }
+
+    protected String visitExpressionStatement(JmmNode node, Integer indentation) {
+        var child = node.getJmmChild(0);
+        child.put("topLevel", "true");
+        var s = visit(child, indentation);
+
+        if (s != null) {
+            if (s.endsWith("*"))
+                s = s.substring(0, s.length() - 1) + "V";
+
+            emitLine(indentation, s, ";");
+        }
 
         return null;
     }
@@ -174,194 +355,6 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         return temp;
     }
 
-    protected String doNothing(JmmNode node, Integer indentation) {
-        return null;
-    }
-
-    protected String visitChildren(JmmNode node, Integer indentation) {
-        StringBuilder sb = new StringBuilder();
-
-        for (var child: node.getChildren()) {
-            var s = visit(child, indentation);
-            if (s != null)
-                sb.append(s);
-        }
-
-        return sb.toString();
-    }
-
-    protected String visitClassDeclaration(JmmNode node, Integer indentation) {
-        emitIndentation(indentation);
-        emit(table.getClassName());
-
-        if (table.getSuper() != null)
-            emit(" extends ", table.getSuper());
-
-        emit(" {\n");
-
-        visitChildren(node, indentation + 4);
-
-        if (!visitedConstructor) {
-            emitLine(indentation + 4, ".construct ", table.getClassName(), "().V {");
-            emitInvokeSpecialInit(indentation + 8, "this");
-            emitLine(indentation + 4, "}");
-        }
-
-        emitLine(indentation, "}");
-
-        return null;
-    }
-
-    protected String visitMethodDeclaration(JmmNode node, Integer indentation) {
-        var method = table.getMethod(node.get("methodName"));
-        var returnType = OllirUtils.toOllirType(method.getReturnType());
-        emitLine(indentation,
-                ".method ",
-                String.join(" ", method.getModifiers()), " ",
-                method.getName(),
-                "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
-                returnType, " {");
-
-        visitChildren(node, indentation + 4);
-
-        if (!node.getJmmChild(node.getNumChildren() - 1).getKind().equals("ReturnStatement"))
-            emitLine(indentation + 4, "ret.", returnType, ";");
-
-        emitLine(indentation, "}");
-
-        return null;
-    }
-
-    protected String visitConstructorDeclaration(JmmNode node, Integer indentation) {
-        visitedConstructor = true;
-
-        var method = table.getMethod("<constructor>");
-        var className = node.get("className");
-        emitLine(indentation,
-                ".construct ",
-                String.join(" ", method.getModifiers()), " ",
-                className,
-                "(", method.getParameters().stream().map(OllirUtils::toOllirSymbol).collect(Collectors.joining(", ")), ").",
-                OllirUtils.toOllirType(method.getReturnType()), " {");
-        emitInvokeSpecialInit(indentation + 4, "this");
-
-        visitChildren(node, indentation + 4);
-
-        emitLine(indentation, "}");
-
-        return null;
-    }
-
-    protected String visitFieldDeclaration(JmmNode node, Integer indentation) {
-        var name = node.getJmmChild(0).get("id");
-        var type = node.getJmmChild(0).get("type");
-
-        if (indentation == 4)
-            emitLine(
-                indentation,
-                ".field private ",
-                name, ".",
-                OllirUtils.toOllirType(type),
-                ";"
-            );
-        else
-            visit(node.getJmmChild(0), indentation);
-
-        return null;
-    }
-
-    protected String visitVariableDeclaration(JmmNode node, Integer indentation) {
-        if (node.getNumChildren() < 2)
-            return null;
-
-        var type = OllirUtils.toOllirType(node.get("type"));
-        var name = node.get("id") + "." + type;
-        var rhsNode = node.getJmmChild(1);
-        rhsNode.put("topLevel", "true");
-        var rhs = visit(rhsNode, indentation);
-
-        if (rhs.endsWith("*"))
-            rhs = rhs.substring(0, rhs.length() - 1) + type;
-
-        emitLine(indentation, name, " :=.", type, " ", rhs, ";");
-
-        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
-            emitInvokeSpecialInit(indentation, name);
-
-        return null;
-    }
-
-    protected String visitImportDeclaration(JmmNode node, Integer indentation) {
-        emit("import ");
-
-        var classPackage = node.getObjectAsList("classPackage", String.class);
-
-        for (var _package : classPackage) {
-            emit(_package);
-            emit(".");
-        }
-
-        var className = node.get("className");
-        emit(className);
-        emit(";\n");
-
-        return null;
-    }
-
-    private String visitBinaryOp(JmmNode jmmNode, Integer indentation) {
-        var lhs = visit(jmmNode.getJmmChild(0), indentation);
-        var rhs = visit(jmmNode.getJmmChild(1), indentation);
-
-        var type = OllirUtils.toOllirType(jmmNode.get("type"));
-        var operator = jmmNode.get("op") + "." + type;
-
-        var line = lhs + " " + operator + " " + rhs;
-
-        if (jmmNode.getOptional("topLevel").isPresent())
-            return line;
-
-        var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=.", type, " ", line, ";");
-
-        return temp;
-    }
-
-    private String visitUnaryPreOp(JmmNode jmmNode, Integer indentation) {
-        var rhs = visit(jmmNode.getJmmChild(0), indentation);
-
-        var type = OllirUtils.toOllirType(jmmNode.get("type"));
-        var operator = jmmNode.get("op") + "." + type;
-        if (operator.startsWith("-."))
-            operator = "0.i32 " + operator;
-
-        var line = operator + " " + rhs;
-
-        if (jmmNode.getOptional("topLevel").isPresent())
-            return line;
-
-        var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=.", type, " ", line, ";");
-
-        return temp;
-    }
-
-    private String visitUnaryPostOp(JmmNode jmmNode, Integer indentation) {
-        var lhs = visit(jmmNode.getJmmChild(0), indentation);
-
-        var type = OllirUtils.toOllirType(jmmNode.get("type"));
-        var operator = jmmNode.get("op") + "." + type;
-
-        var line = lhs + " " + operator;
-
-        if (jmmNode.getOptional("topLevel").isPresent())
-            return line;
-
-        var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=.", type, " ", line, ";");
-
-        return temp;
-    }
-
     protected String visitMethodCall(JmmNode node, Integer indentation) {
         var method = node.get("member");
         var lhs = "this";
@@ -390,36 +383,6 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var temp = OllirUtils.getNextTemp() + "." + returnType;
         emitLine(indentation, temp, " :=.", returnType, " ", line, ";");
         return temp;
-    }
-
-    protected String visitArgumentList(JmmNode node, Integer indentation) {
-        return node.getChildren().stream()
-            .map(child -> ", " + visit(child, indentation))
-            .collect(Collectors.joining());
-    }
-
-    protected String visitLiteral(JmmNode node, Integer indentation) {
-        var type = OllirUtils.toOllirType(node.get("type"));
-        var value = node.get("value");
-
-        return switch (type) {
-            case "String" -> {
-                var line = "ldc(" + value + ").String";
-
-                if (node.getOptional("topLevel").isPresent())
-                    yield line;
-
-                var temp = OllirUtils.getNextTemp() + ".String";
-                emitLine(indentation, temp, " :=.String " + line + ";");
-                yield temp;
-            }
-
-            case "bool" -> (value.equals("true") ? "1" : "0") + ".bool";
-
-            case "char" -> ((int) value.charAt(value.length() - 1)) + ".i32";
-
-            default -> value.split("\\.")[0] + "." + type;
-        };
     }
 
     protected String visitPropertyAccess(JmmNode node, Integer indentation) {
@@ -462,6 +425,115 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
         return temp;
+    }
+
+    private String visitUnaryPostOp(JmmNode jmmNode, Integer indentation) {
+        var lhs = visit(jmmNode.getJmmChild(0), indentation);
+
+        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var operator = jmmNode.get("op") + "." + type;
+
+        var line = lhs + " " + operator;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    private String visitUnaryPreOp(JmmNode jmmNode, Integer indentation) {
+        var rhs = visit(jmmNode.getJmmChild(0), indentation);
+
+        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var operator = jmmNode.get("op") + "." + type;
+        if (operator.startsWith("-."))
+            operator = "0.i32 " + operator;
+
+        var line = operator + " " + rhs;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    private String visitBinaryOp(JmmNode jmmNode, Integer indentation) {
+        var lhs = visit(jmmNode.getJmmChild(0), indentation);
+        var rhs = visit(jmmNode.getJmmChild(1), indentation);
+
+        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var operator = jmmNode.get("op") + "." + type;
+
+        var line = lhs + " " + operator + " " + rhs;
+
+        if (jmmNode.getOptional("topLevel").isPresent())
+            return line;
+
+        var temp = OllirUtils.getNextTemp() + "." + type;
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    protected String visitAssignment(JmmNode node, Integer indentation) {
+        var lhsNode = node.getJmmChild(0);
+        var rhsNode = node.getJmmChild(1);
+
+        lhsNode.put("topLevel", "true");
+        var lhs = visit(lhsNode, indentation);
+
+        if (lhs.startsWith("getfield")) {
+            lhs = "put" + lhs.substring(3);
+
+            var rhs = visit(rhsNode, indentation);
+            lhs = lhs.substring(0, lhs.lastIndexOf(")")) + ", " + rhs + ").V";
+            return lhs;
+        }
+
+        rhsNode.put("topLevel", "true");
+        var rhs = visit(rhsNode, indentation);
+
+        var type = OllirUtils.toOllirType(node.get("type"));
+
+        if (rhs.endsWith("*"))
+            rhs = rhs.substring(0, rhs.length() - 1) + type;
+
+        emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
+
+        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
+            emitInvokeSpecialInit(indentation, lhs);
+
+        return node.getOptional("topLevel").isPresent() ? null : lhs;
+    }
+
+    protected String visitLiteral(JmmNode node, Integer indentation) {
+        var type = OllirUtils.toOllirType(node.get("type"));
+        var value = node.get("value");
+
+        return switch (type) {
+            case "String" -> {
+                var line = "ldc(" + value + ").String";
+
+                if (node.getOptional("topLevel").isPresent())
+                    yield line;
+
+                var temp = OllirUtils.getNextTemp() + ".String";
+                emitLine(indentation, temp, " :=.String " + line + ";");
+                yield temp;
+            }
+
+            case "bool" -> (value.equals("true") ? "1" : "0") + ".bool";
+
+            case "char" -> ((int) value.charAt(value.length() - 1)) + ".i32";
+
+            default -> value.split("\\.")[0] + "." + type;
+        };
     }
 
     protected String visitIdentifier(JmmNode node, Integer indentation) {
@@ -517,70 +589,5 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     protected String visitThis(JmmNode node, Integer indentation) {
         return "this";
-    }
-
-    protected String visitAssignment(JmmNode node, Integer indentation) {
-        var lhsNode = node.getJmmChild(0);
-        var rhsNode = node.getJmmChild(1);
-
-        lhsNode.put("topLevel", "true");
-        var lhs = visit(lhsNode, indentation);
-
-        if (lhs.startsWith("getfield")) {
-            lhs = "put" + lhs.substring(3);
-
-            var rhs = visit(rhsNode, indentation);
-            lhs = lhs.substring(0, lhs.lastIndexOf(")")) + ", " + rhs + ").V";
-            return lhs;
-        }
-
-        rhsNode.put("topLevel", "true");
-        var rhs = visit(rhsNode, indentation);
-
-        var type = OllirUtils.toOllirType(node.get("type"));
-
-        if (rhs.endsWith("*"))
-            rhs = rhs.substring(0, rhs.length() - 1) + type;
-
-        emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
-
-        if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
-            emitInvokeSpecialInit(indentation, lhs);
-
-        return node.getOptional("topLevel").isPresent() ? null : lhs;
-    }
-
-    protected String visitExpressionStatement(JmmNode node, Integer indentation) {
-        var child = node.getJmmChild(0);
-        child.put("topLevel", "true");
-        var s = visit(child, indentation);
-
-        if (s != null) {
-            if (s.endsWith("*"))
-                s = s.substring(0, s.length() - 1) + "V";
-
-            emitLine(indentation, s, ";");
-        }
-
-        return null;
-    }
-
-    protected String visitReturnStatement(JmmNode node, Integer indentation) {
-        var child = node.getJmmChild(0);
-        var s = visit(child, indentation);
-        var type = OllirUtils.toOllirType(child.get("type"));
-
-        if (s != null)
-            emitLine(indentation, "ret.", type, " ", s, ";");
-
-        return null;
-    }
-
-    public String getOllirCode() {
-        return code.toString();
-    }
-
-    public List<Report> getReports() {
-        return reports;
     }
 }

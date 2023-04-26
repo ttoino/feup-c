@@ -22,8 +22,8 @@ public class OllirUtils {
         return new String[] { "__while__" + whileLabelCounter, "__endwhile__" + whileLabelCounter++ };
     }
 
-    public static String getNextDoWhileLabel() {
-        return "__dowhile__" + doWhileLabelCounter++;
+    public static String[] getNextDoWhileLabels() {
+        return new String[] { "__dowhile__" + doWhileLabelCounter, "__enddowhile__" + doWhileLabelCounter++ };
     }
 
     public static String toOllirType(Type type) {
