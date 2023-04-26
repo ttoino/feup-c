@@ -3,6 +3,7 @@ package pt.up.fe.comp2023.ollir;
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
 import pt.up.fe.comp.jmm.report.Report;
+import pt.up.fe.comp2023.Utils;
 import pt.up.fe.comp2023.analysis.JmmSymbolTable;
 
 import java.util.ArrayList;
@@ -74,9 +75,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("ForEachStatement", this::doNothing);
         addVisit("SwitchStatement", this::doNothing);
         addVisit("ReturnStatement", this::visitReturnStatement);
-        // TODO
-        addVisit("BreakStatement", this::doNothing);
-        addVisit("ContinueStatement", this::doNothing);
+        addVisit("BreakStatement", this::visitBreakOrContinueStatement);
+        addVisit("ContinueStatement", this::visitBreakOrContinueStatement);
         addVisit("ExpressionStatement", this::visitExpressionStatement);
 
         // Expression
@@ -89,8 +89,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("UnaryPostOp", this::visitUnaryPostOp);
         addVisit("UnaryPreOp", this::visitUnaryPreOp);
         addVisit("BinaryOp", this::visitBinaryOp);
-        // TODO
-        addVisit("TernaryOp", this::doNothing);
+        addVisit("TernaryOp", this::visitTernaryOp);
         addVisit("AssignmentExpression", this::visitAssignment);
         addVisit("LiteralExpression", this::visitLiteral);
         addVisit("IdentifierExpression", this::visitIdentifier);
@@ -241,31 +240,35 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var condition = visit(node.getChildren().get(0), indentation);
         var ifLabels = OllirUtils.getNextIfLabels();
 
-        emitLine(indentation, "if(!.bool " + condition + ") goto " + ifLabels[0] + ";");
+        emitLine(indentation, "if(!.bool ", condition, ") goto ", ifLabels[0], ";");
 
         visit(node.getChildren().get(1), indentation + 4);
 
-        emitLine(indentation + 4, "goto " + ifLabels[1] + ";");
-        emitLine(indentation, ifLabels[0] + ":");
+        emitLine(indentation + 4, "goto ", ifLabels[1], ";");
+        emitLine(indentation, ifLabels[0], ":");
 
         visit(node.getChildren().get(2), indentation + 4);
 
-        emitLine(indentation, ifLabels[1] + ":");
+        emitLine(indentation, ifLabels[1], ":");
 
         return null;
     }
 
     protected String visitWhileStatement(JmmNode node, Integer indentation) {
-        var condition = visit(node.getChildren().get(0), indentation);
         var whileLabels = OllirUtils.getNextWhileLabels();
 
-        emitLine(indentation, whileLabels[0] + ":");
-        emitLine(indentation + 4, "if(!.bool " + condition + ") goto " + whileLabels[1] + ";");
+        node.put("continueLabel", whileLabels[0]);
+        node.put("breakLabel", whileLabels[1]);
+
+        emitLine(indentation, whileLabels[0], ":");
+
+        var condition = visit(node.getChildren().get(0), indentation + 4);
+        emitLine(indentation + 4, "if(!.bool ", condition, ") goto ", whileLabels[1], ";");
 
         visit(node.getChildren().get(1), indentation + 4);
 
-        emitLine(indentation + 4, "goto " + whileLabels[0] + ";");
-        emitLine(indentation, whileLabels[1] + ":");
+        emitLine(indentation + 4, "goto ", whileLabels[0], ";");
+        emitLine(indentation, whileLabels[1], ":");
 
         return null;
     }
@@ -273,15 +276,18 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     protected String visitDoWhileStatement(JmmNode node, Integer indentation) {
         var doWhileLabels = OllirUtils.getNextDoWhileLabels();
 
-        emitLine(indentation, doWhileLabels[0] + ":");
+        node.put("continueLabel", doWhileLabels[0]);
+        node.put("breakLabel", doWhileLabels[1]);
+
+        emitLine(indentation, doWhileLabels[0], ":");
 
         visit(node.getChildren().get(0), indentation + 4);
 
         var conditionNode = node.getChildren().get(1);
         conditionNode.put("topLevel", "true");
         var condition = visit(conditionNode, indentation);
-        emitLine(indentation + 4, "if(" + condition + ") goto " + doWhileLabels[0] + ";");
-        emitLine(indentation, doWhileLabels[1] + ":");
+        emitLine(indentation + 4, "if(", condition, ") goto ", doWhileLabels[0], ";");
+        emitLine(indentation, doWhileLabels[1], ":");
 
         return null;
     }
@@ -294,6 +300,13 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         if (s != null)
             emitLine(indentation, "ret.", type, " ", s, ";");
 
+        return null;
+    }
+
+    protected String visitBreakOrContinueStatement(JmmNode node, Integer indentation) {
+        var labelName = (node.getKind().equals("BreakStatement") ? "break" : "continue") + "Label";
+        var label = Utils.getFromAncestor(node, labelName);
+        emitLine(indentation, "goto ", label, ";");
         return null;
     }
 
@@ -477,6 +490,32 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         var temp = OllirUtils.getNextTemp() + "." + type;
         emitLine(indentation, temp, " :=.", type, " ", line, ";");
+
+        return temp;
+    }
+
+    protected String visitTernaryOp(JmmNode node, Integer indentation) {
+        var condition = visit(node.getJmmChild(0), indentation);
+        var ifLabels = OllirUtils.getNextIfLabels();
+        var type = OllirUtils.toOllirType(node.get("type"));
+        var temp = OllirUtils.getNextTemp() + "." + type;
+
+        emitLine(indentation, "if (!.bool ", condition, ") goto ", ifLabels[0], ";");
+
+        var lhsNode = node.getJmmChild(1);
+        lhsNode.put("topLevel", "true");
+        var lhs = visit(lhsNode, indentation + 4);
+        emitLine(indentation + 4, temp, " :=.", type, " ", lhs, ";");
+
+        emitLine(indentation + 4, "goto ", ifLabels[1], ";");
+        emitLine(indentation, ifLabels[0], ":");
+
+        var rhsNode = node.getJmmChild(2);
+        rhsNode.put("topLevel", "true");
+        var rhs = visit(rhsNode, indentation + 4);
+        emitLine(indentation + 4, temp, " :=.", type, " ", rhs, ";");
+
+        emitLine(indentation, ifLabels[1], ":");
 
         return temp;
     }
