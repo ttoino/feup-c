@@ -1,6 +1,5 @@
 package pt.up.fe.comp2023;
 
-import org.specs.comp.ollir.Method;
 import org.specs.comp.ollir.*;
 import pt.up.fe.comp.jmm.jasmin.JasminBackend;
 import pt.up.fe.comp.jmm.jasmin.JasminResult;
@@ -21,7 +20,7 @@ public class Backend implements JasminBackend {
     public JasminResult toJasmin(OllirResult ollirResult) {
 
         var config = ollirResult.getConfig();
-        List<Report> reports = new ArrayList<>();
+        var reports = new ArrayList<Report>();
 
         this.debugMode = Boolean.parseBoolean(config.get("debug"));
 
@@ -60,7 +59,8 @@ public class Backend implements JasminBackend {
 
         var classAccessModifier = ollirClass.getClassAccessModifier();
         String modifier = classAccessModifier.name().toLowerCase();
-        if (classAccessModifier == AccessModifiers.DEFAULT) modifier = "public"; // HACK: this is made so the tests pass, it should not be like this
+        if (classAccessModifier == AccessModifiers.DEFAULT)
+            modifier = "public"; // HACK: this is made so the tests pass, it should not be like this
         sb.append(modifier);
         sb.append(' ').append(className).append('\n');
 
@@ -75,15 +75,8 @@ public class Backend implements JasminBackend {
 
         sb.append('\n');
 
-        boolean hasConstructor = false;
-        for (Method method : ollirClass.getMethods()) {
-            if (method.isConstructMethod()) hasConstructor = true;
+        for (Method method : ollirClass.getMethods())
             sb.append(this.buildJasminMethod(method, reports)).append('\n');
-        }
-
-        if (!hasConstructor) {
-            // TODO:
-        }
 
         return sb.toString();
     }
@@ -142,7 +135,7 @@ public class Backend implements JasminBackend {
             var varTable = method.getVarTable();
 
             // TODO: change when optimizing
-            sb.append("\t.limit locals ").append(varTable.size() + 1).append('\n');
+            sb.append("\t.limit locals ").append(varTable.size()).append('\n');
             sb.append("\t.limit stack 99").append('\n');
         }
 
@@ -191,13 +184,20 @@ public class Backend implements JasminBackend {
         boolean hasReturn = false;
         var varTable = method.getVarTable();
 
+        Map<Instruction, String> labelMap = new HashMap<>();
+
+        for (var entry : method.getLabels().entrySet()) {
+            labelMap.put(entry.getValue(), entry.getKey());
+        }
+
         for (Instruction instruction : method.getInstructions()) {
 
             if (instruction.getInstType() == InstructionType.RETURN) hasReturn = true;
 
-            var labels = method.getLabels(instruction);
+            if (labelMap.containsKey(instruction))
+                sb.append(labelMap.get(instruction)).append(':').append('\n');
 
-            sb.append(this.buildJasminInstruction(instruction, varTable, labels, reports)).append('\n');
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
 
             if (instruction.getInstType() == InstructionType.CALL && ((CallInstruction) instruction).getReturnType().getTypeOfElement() != ElementType.VOID) {
                 sb.append("\tpop\n");
@@ -212,17 +212,17 @@ public class Backend implements JasminBackend {
             var instruction = new ReturnInstruction();
             instruction.setReturnType(new Type(ElementType.VOID));
 
-            sb.append(this.buildJasminInstruction(instruction, varTable, List.of(), reports)).append('\n');
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
         }
 
         return sb.toString();
     }
 
-    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<String> labels, List<Report> reports) {
+    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
         switch (instruction.getInstType()) {
             case ASSIGN:
-                return this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, labels, reports);
+                return this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
             case CALL:
                 return this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
             case GOTO:
@@ -243,30 +243,55 @@ public class Backend implements JasminBackend {
                 return this.buildJasminSingleOpInstruction((SingleOpInstruction) instruction, varTable, reports);
         }
 
-        return "\tno-op";
+        return "\t;no-op";
     }
 
-    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<String> labels, List<Report> reports) {
+    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
         var sb = new StringBuilder();
 
-        sb.append(this.buildJasminInstruction(instruction.getRhs(), varTable, labels, reports)).append('\n');
+        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
 
         Operand op = (Operand) instruction.getDest();
 
         var descriptor = varTable.get(op.getName());
         int regNum = descriptor.getVirtualReg();
 
-        sb.append('\t');
-        switch (instruction.getTypeOfAssign().getTypeOfElement()) {
-            case INT32, BOOLEAN -> sb.append('i');
-            case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> sb.append('a');
-            case VOID ->
-                    reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
-        }
-        sb.append("store");
+        if (op instanceof ArrayOperand arr) {
+            sb.append("\taload");
 
-        sb.append(regNum < 4 ? '_' : ' ').append(regNum);
+            sb.append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+
+            for (var elem : arr.getIndexOperands()) {
+                sb.append('\t').append(this.buildJasminLoadElementInstruction(elem, varTable, reports)).append("\n");
+            }
+
+            sb.append(rhs).append('\n');
+
+            sb.append('\t');
+            switch (arr.getType().getTypeOfElement()) {
+                case INT32, BOOLEAN -> sb.append('i');
+                case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
+                case VOID ->
+                        reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+            }
+            sb.append("astore");
+        } else {
+
+            sb.append(rhs).append('\n');
+
+            sb.append('\t');
+            switch (instruction.getTypeOfAssign().getTypeOfElement()) {
+                case INT32, BOOLEAN -> sb.append('i');
+                case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> sb.append('a');
+                case VOID ->
+                        reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot assign to void variable", new Exception("Cannot assign to void variable")));
+            }
+            sb.append("store");
+
+            sb.append(regNum < 4 ? '_' : ' ').append(regNum);
+        }
+
 
         return sb.toString();
     }
@@ -294,7 +319,8 @@ public class Backend implements JasminBackend {
 
                 sb.append(this.buildJasminIntegerPushInstruction(Integer.parseInt(value)));
             }
-            case ARRAYREF, OBJECTREF, STRING, THIS, CLASS, VOID ->
+            case STRING -> sb.append("ldc ").append(literal.getLiteral());
+            case ARRAYREF, OBJECTREF, THIS, CLASS, VOID ->
                     reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
         }
 
@@ -318,7 +344,16 @@ public class Backend implements JasminBackend {
                 sb.append('\t').append(this.buildJasminLoadElementInstruction(elem, varTable, reports)).append("\n");
             }
 
-            sb.append("\taiload");
+            sb.append('\t');
+
+            switch (arr.getType().getTypeOfElement()) {
+                case INT32, BOOLEAN -> sb.append('i');
+                case ARRAYREF, OBJECTREF, STRING, THIS, CLASS -> sb.append('a');
+                case VOID ->
+                        reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
+            }
+            sb.append("aload");
+
         } else {
             switch (op.getType().getTypeOfElement()) {
                 case INT32, BOOLEAN -> sb.append('i');
@@ -453,7 +488,26 @@ public class Backend implements JasminBackend {
 
                 var className = objectClass.getName();
 
-                sb.append("\tnew ").append(className).append('\n');
+                if ("array".equals(className)) {
+
+                    // there should only be one other operand, the array size. Load it and assume this is ok
+                    var sizeOperand = instruction.getListOfOperands().get(0);
+
+                    sb.append('\t').append(this.buildJasminLoadElementInstruction(sizeOperand, varTable, reports)).append('\n');
+
+                    sb.append("\tnewarray").append(' ');
+                    var elementType = ((ArrayType)instruction.getReturnType()).getElementType().getTypeOfElement();
+
+                    if (elementType == ElementType.INT32) {
+                        sb.append("int");
+                    } else {
+                        reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Only int arrays are supported", new Exception("Only int arrays are supported")));
+                    }
+                }
+                else
+                    sb.append("new ").append(className);
+
+                sb.append('\n');
                 sb.append("\tdup");
 
             }
@@ -470,6 +524,9 @@ public class Backend implements JasminBackend {
 
             }
             case ldc -> {
+                var literal = (LiteralElement) instruction.getFirstArg();
+
+                sb.append('\t').append("ldc ").append(literal.getLiteral());
             }
         }
 
@@ -568,11 +625,21 @@ public class Backend implements JasminBackend {
     private String buildJasminUnaryOperatorInstruction(UnaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
 
-        Operand op = (Operand) instruction.getOperand();
-
-        var descriptor = varTable.get(op.getName());
-
         Operation operation = instruction.getOperation();
+
+        var dType = switch (operation.getTypeInfo().getTypeOfElement()) {
+            case INT32, BOOLEAN -> "i";
+            case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> "a";
+            case VOID -> {
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot perform binary operation on void type", new Exception("Cannot perform binary operation on void type")));
+                yield "marker";
+            }
+        };
+        if ("marker".equals(dType)) return "";
+
+        sb.append('\t');
+        sb.append(this.buildJasminLoadElementInstruction(instruction.getOperand(), varTable, reports));
+        sb.append('\n');
 
         switch (operation.getOpType()) {
             case ADD -> {
@@ -614,6 +681,7 @@ public class Backend implements JasminBackend {
             case NOTB -> {
             }
             case NOT -> {
+                sb.append("not");
             }
         }
 
@@ -666,10 +734,13 @@ public class Backend implements JasminBackend {
             case SHRR -> {
             }
             case XOR -> {
+                sb.append("xor");
             }
-            case AND -> {
+            case AND, ANDB -> {
+                sb.append("and");
             }
-            case OR -> {
+            case OR, ORB -> {
+                sb.append("or");
             }
             case LTH -> {
             }
@@ -682,10 +753,6 @@ public class Backend implements JasminBackend {
             case LTE -> {
             }
             case GTE -> {
-            }
-            case ANDB -> {
-            }
-            case ORB -> {
             }
             case NOTB -> {
             }
