@@ -204,13 +204,13 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
         var type1 = node.getJmmChild(0).get("type");
         var type2 = node.getJmmChild(1).get("type");
 
-        if (!type1.endsWith("[]"))
+        if (!type1.endsWith("[]") && !type1.equals("*"))
             error(node, "Cannot index expression of type '" + type1 + "'");
 
         if (!typesMatch(type2, "int"))
             error(node, "Cannot use expression of type '" + type2 + "' as index");
 
-        node.put("type", type1.substring(0, type1.length() - 2));
+        node.put("type", type1.endsWith("[]") ? type1.substring(0, type1.length() - 2) : "*");
         node.put("canAssign", "true");
 
         return context;

@@ -43,6 +43,15 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         emitLine(indentation, "invokespecial(" + symbol + ", \"<init>\").V;");
     }
 
+    private String commonType(String type1, String type2) {
+        if (type1.equals("*"))
+            if (type2.equals("*"))
+                return "int";
+            else
+                return type2;
+        else return type1;
+    }
+
     public String getOllirCode() {
         return code.toString();
     }
@@ -138,6 +147,9 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         emit(" {\n");
 
+        for (var field : table.getFields())
+            emitLine(indentation + 4, ".field ", OllirUtils.toOllirSymbol(field), ";");
+
         visitChildren(node, indentation + 4);
 
         if (!visitedConstructor) {
@@ -172,18 +184,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitFieldDeclaration(JmmNode node, Integer indentation) {
-        var name = node.getJmmChild(0).get("id");
-        var type = node.getJmmChild(0).get("type");
-
-        if (indentation == 4)
-            emitLine(
-                    indentation,
-                    ".field private ",
-                    name, ".",
-                    OllirUtils.toOllirType(type),
-                    ";"
-            );
-        else
+        if (indentation != 4)
             visit(node.getJmmChild(0), indentation);
 
         return null;
@@ -211,7 +212,12 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     protected String visitArgumentList(JmmNode node, Integer indentation) {
         return node.getChildren().stream()
-                .map(child -> ", " + visit(child, indentation))
+                .map(child -> {
+                    var type = child.get("type");
+                    if (type.equals("*"))
+                        child.put("type", "int");
+                    return ", " + visit(child, indentation);
+                })
                 .collect(Collectors.joining());
     }
 
@@ -312,21 +318,20 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     protected String visitExpressionStatement(JmmNode node, Integer indentation) {
         var child = node.getJmmChild(0);
+        if (child.get("type").equals("*"))
+            child.put("type", child.getKind().equals("MethodCall") ? "void" : "int");
         child.put("topLevel", "true");
         var s = visit(child, indentation);
 
-        if (s != null) {
-            if (s.endsWith("*"))
-                s = s.substring(0, s.length() - 1) + "V";
-
+        if (s != null)
             emitLine(indentation, s, ";");
-        }
 
         return null;
     }
 
     protected String visitExplicitPriority(JmmNode node, Integer indentation) {
         var child = node.getChildren().get(0);
+        child.put("type", node.get("type"));
 
         if (node.getOptional("topLevel").isPresent())
             child.put("topLevel", "true");
@@ -338,8 +343,19 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var type = node.get("type");
         var args = "";
 
-        if (node.getNumChildren() > 0)
-            args = visit(node.getChildren().get(0), indentation);
+        if (node.getNumChildren() > 0) {
+            if (type.equals(table.getClassName())) {
+                var params = table.getParameters("<constructor>");
+                var argsNode = node.getJmmChild(0);
+                for (int i = 0; i < argsNode.getNumChildren(); i++) {
+                    var arg = argsNode.getJmmChild(i);
+                    var param = params.get(i);
+                    arg.put("type", commonType(param.getType().print(), arg.get("type")));
+                }
+            }
+
+            args = visit(node.getJmmChild(0), indentation);
+        }
 
         var line = "new(" + type + args + ")." + type;
 
@@ -347,7 +363,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
             return line;
 
         var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=." + type + " ", line, ";");
+        emitLine(indentation, temp, " :=.", type, " ", line, ";");
         emitInvokeSpecialInit(indentation, temp);
 
         return temp;
@@ -376,12 +392,25 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var fn = "invokestatic";
 
         if (node.getNumChildren() > 0) {
-            if (node.getJmmChild(0).getKind().equals("ArgumentList"))
-                args = visit(node.getJmmChild(0), indentation);
-            else {
-                lhs = visit(node.getJmmChild(0), indentation);
-                if (node.getNumChildren() > 1)
-                    args = visit(node.getJmmChild(1), indentation);
+            var argsNode = node.getJmmChild(0);
+
+            if (!argsNode.getKind().equals("ArgumentList")) {
+                lhs = visit(argsNode, indentation);
+
+                argsNode = node.getNumChildren() > 1 ? node.getJmmChild(1) : null;
+            }
+
+            if (argsNode != null) {
+                if (lhs.equals("this") || lhs.endsWith("." + table.getClassName())) {
+                    var params = table.getParameters(method);
+                    for (int i = 0; i < argsNode.getNumChildren(); i++) {
+                        var arg = argsNode.getJmmChild(i);
+                        var param = params.get(i);
+                        arg.put("type", commonType(param.getType().print(), arg.get("type")));
+                    }
+                }
+
+                args = visit(argsNode, indentation);
             }
         }
 
@@ -404,7 +433,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var type = OllirUtils.toOllirType(node.get("type"));
         var member = node.get("member");
 
-        var line = "getfield(" + lhs + ", " + member + "." + type + ")." + type;
+        var isNotStatic = lhs.equals("this") || lhs.contains(".");
+        var line = (isNotStatic ? "getfield(" : "getstatic(") + lhs + ", " + member + "." + type + ")." + type;
 
         if (lhsNode.get("type").endsWith("[]"))
             line = "arraylength(" + lhs + ")." + type;
@@ -419,8 +449,13 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitArrayAccess(JmmNode node, Integer indentation) {
-        var lhs = visit(node.getJmmChild(0), indentation);
-        var index = visit(node.getJmmChild(1), indentation);
+        var lhsNode = node.getJmmChild(0);
+        var indexNode = node.getJmmChild(1);
+        lhsNode.put("type", node.get("type") + "[]");
+        indexNode.put("type", "int");
+
+        var lhs = visit(lhsNode, indentation);
+        var index = visit(indexNode, indentation);
 
         if (Character.isDigit(index.charAt(0))) {
             var temp = OllirUtils.getNextTemp() + ".i32";
@@ -477,10 +512,17 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     private String visitBinaryOp(JmmNode jmmNode, Integer indentation) {
-        var lhs = visit(jmmNode.getJmmChild(0), indentation);
-        var rhs = visit(jmmNode.getJmmChild(1), indentation);
+        var lhsNode = jmmNode.getJmmChild(0);
+        var rhsNode = jmmNode.getJmmChild(1);
 
-        var type = OllirUtils.toOllirType(jmmNode.get("type"));
+        var type = commonType(lhsNode.get("type"), rhsNode.get("type"));
+        lhsNode.put("type", type);
+        rhsNode.put("type", type);
+
+        var lhs = visit(lhsNode, indentation);
+        var rhs = visit(rhsNode, indentation);
+
+        type = OllirUtils.toOllirType(type);
         var operator = jmmNode.get("op") + "." + type;
 
         var line = lhs + " " + operator + " " + rhs;
@@ -488,6 +530,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         if (jmmNode.getOptional("topLevel").isPresent())
             return line;
 
+        type = OllirUtils.toOllirType(jmmNode.get("type"));
         var temp = OllirUtils.getNextTemp() + "." + type;
         emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
@@ -523,11 +566,15 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     protected String visitAssignment(JmmNode node, Integer indentation) {
         var lhsNode = node.getJmmChild(0);
         var rhsNode = node.getJmmChild(1);
+        var type = OllirUtils.toOllirType(commonType(lhsNode.get("type"), rhsNode.get("type")));
+
+        lhsNode.put("type", type);
+        rhsNode.put("type", type);
 
         lhsNode.put("topLevel", "true");
         var lhs = visit(lhsNode, indentation);
 
-        if (lhs.startsWith("getfield")) {
+        if (lhs.startsWith("getfield(") || lhs.startsWith("getstatic(")) {
             lhs = "put" + lhs.substring(3);
 
             var rhs = visit(rhsNode, indentation);
@@ -537,8 +584,6 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         rhsNode.put("topLevel", "true");
         var rhs = visit(rhsNode, indentation);
-
-        var type = OllirUtils.toOllirType(node.get("type"));
 
         if (rhs.endsWith("*"))
             rhs = rhs.substring(0, rhs.length() - 1) + type;
