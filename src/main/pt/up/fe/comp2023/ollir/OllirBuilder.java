@@ -386,10 +386,10 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     protected String visitMethodCall(JmmNode node, Integer indentation) {
         var method = node.get("member");
-        var lhs = "this";
+        var lhs = "this." + table.getClassName();
         var args = "";
         var returnType = OllirUtils.toOllirType(node.get("type"));
-        var fn = "invokestatic";
+        var fn = "invokevirtual";
 
         if (node.getNumChildren() > 0) {
             var argsNode = node.getJmmChild(0);
@@ -401,7 +401,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
             }
 
             if (argsNode != null) {
-                if (lhs.equals("this") || lhs.endsWith("." + table.getClassName())) {
+                if (lhs.endsWith("." + table.getClassName())) {
                     var params = table.getParameters(method);
                     for (int i = 0; i < argsNode.getNumChildren(); i++) {
                         var arg = argsNode.getJmmChild(i);
@@ -414,8 +414,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
             }
         }
 
-        if (lhs.equals("this") || lhs.contains("."))
-            fn = "invokevirtual";
+        if (!lhs.contains("."))
+            fn = "invokestatic";
 
         var line = fn + "(" + lhs + ", \"" + method + "\"" + args + ")." + returnType;
 
@@ -433,8 +433,8 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var type = OllirUtils.toOllirType(node.get("type"));
         var member = node.get("member");
 
-        var isNotStatic = lhs.equals("this") || lhs.contains(".");
-        var line = (isNotStatic ? "getfield(" : "getstatic(") + lhs + ", " + member + "." + type + ")." + type;
+        var fn = lhs.contains(".") ? "getfield" : "getstatic";
+        var line = fn + "(" + lhs + ", " + member + "." + type + ")." + type;
 
         if (lhsNode.get("type").endsWith("[]"))
             line = "arraylength(" + lhs + ")." + type;
@@ -456,19 +456,13 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         var lhs = visit(lhsNode, indentation);
         var index = visit(indexNode, indentation);
+        var type = OllirUtils.toOllirType(node.get("type"));
 
-        if (Character.isDigit(index.charAt(0))) {
-            var temp = OllirUtils.getNextTemp() + ".i32";
-            emitLine(indentation, temp, " :=.i32 ", index, ";");
-            index = temp;
-        }
-
-        var line = lhs.replaceFirst("\\.array", "[" + index + "]");
+        var line = lhs + "[" + index + "]." + type;
 
         if (node.getOptional("topLevel").isPresent())
             return line;
 
-        var type = OllirUtils.toOllirType(node.get("type"));
         var temp = OllirUtils.getNextTemp() + "." + type;
         emitLine(indentation, temp, " :=.", type, " ", line, ";");
 
@@ -658,13 +652,13 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
                 var type = OllirUtils.toOllirType(variable.getType());
                 var symbol = OllirUtils.toOllirSymbol(variable);
 
-                var line = "getfield(this, " + symbol + ")." + type;
+                var line = "getfield(this." + table.getClassName() + ", " + symbol + ")." + type;
 
                 if (node.getOptional("topLevel").isPresent())
                     return line;
 
                 var temp = OllirUtils.getNextTemp() + "." + type;
-                emitLine(indentation, temp, " :=.", type, " getfield(this, ", symbol, ").", type, ";");
+                emitLine(indentation, temp, " :=.", type, " ", line, ";");
                 return temp;
             }
 
@@ -672,6 +666,6 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     }
 
     protected String visitThis(JmmNode node, Integer indentation) {
-        return "this";
+        return "this." + table.getClassName();
     }
 }
