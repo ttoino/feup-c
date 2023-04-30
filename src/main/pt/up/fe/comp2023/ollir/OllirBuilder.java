@@ -681,6 +681,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
     protected String visitAssignment(JmmNode node, Integer indentation) {
         var lhsNode = node.getJmmChild(0);
         var rhsNode = node.getJmmChild(1);
+        var operator = node.get("op").substring(0, node.get("op").length() - 1);
         var type = OllirUtils.toOllirType(commonType(lhsNode.get("type"), rhsNode.get("type")));
 
         lhsNode.put("type", type);
@@ -690,20 +691,31 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         var lhs = visit(lhsNode, indentation);
 
         if (lhs.startsWith("getfield(") || lhs.startsWith("getstatic(")) {
-            lhs = "put" + lhs.substring(3);
+            if (!operator.isEmpty()) {
+                var temp1 = OllirUtils.getNextTemp() + "." + type;
+                emitLine(indentation, temp1, " :=.", type, " ", lhs, ";");
 
-            var rhs = visit(rhsNode, indentation);
-            lhs = lhs.substring(0, lhs.lastIndexOf(")")) + ", " + rhs + ").V";
+                var temp2 = OllirUtils.getNextTemp() + "." + type;
+                var rhs = visit(rhsNode, indentation);
+                emitLine(indentation, temp2, " :=.", type, " ", temp1, " ", operator, ".", type, " ", rhs, ";");
+
+                lhs = "put" + lhs.substring(3, lhs.lastIndexOf(")")) + ", " + temp2 + ").V";
+            } else {
+                var rhs = visit(rhsNode, indentation);
+                lhs = "put" + lhs.substring(3, lhs.lastIndexOf(")")) + ", " + rhs + ").V";
+            }
+
             return lhs;
         }
 
-        rhsNode.put("topLevel", "true");
+        if (operator.isEmpty())
+            rhsNode.put("topLevel", "true");
         var rhs = visit(rhsNode, indentation);
 
-        if (rhs.endsWith("*"))
-            rhs = rhs.substring(0, rhs.length() - 1) + type;
-
-        emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
+        if (operator.isEmpty())
+            emitLine(indentation, lhs, " :=.", type, " ", rhs, ";");
+        else
+            emitLine(indentation, lhs, " :=.", type, " ", lhs, " ", operator, ".", type, " ", rhs, ";");
 
         if (rhs.startsWith("new(") && !rhs.startsWith("new(array,"))
             emitInvokeSpecialInit(indentation, lhs);
