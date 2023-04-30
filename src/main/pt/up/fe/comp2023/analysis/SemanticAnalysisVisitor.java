@@ -57,6 +57,8 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
         addVisit("ForTerm", this::checkForTerminal);
         addVisit("ForEachStatement", this::checkForEach);
         addVisit("SwitchStatement", this::checkSwitch);
+        addVisit("CaseStatement", this::checkCase);
+        addVisit("DefaultStatement", this::checkDefault);
         addVisit("ComplexType", this::checkComplexType);
     }
 
@@ -449,6 +451,47 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
         var type = node.getJmmChild(0).get("type");
         if (!in(PRIMITIVE_TYPES, type) && !type.equals("String"))
             error(node, "Cannot use expression of type '" + type + "' inside switch statement");
+
+        return context;
+    }
+
+    protected String checkCase(JmmNode node, String context) {
+        var switchNode = node.getJmmParent();
+        var switchExpression = switchNode.getJmmChild(0);
+        var switchType = switchExpression.get("type");
+
+        var casesOpt = switchNode.getOptionalObject("cases");
+        if (casesOpt.isEmpty()) {
+            switchNode.putObject("cases", new TreeSet<String>());
+            casesOpt = switchNode.getOptionalObject("cases");
+        }
+        var cases = (Set<String>) casesOpt.get();
+        var value = node.get("value");
+
+        if (cases.contains(value))
+            error(node, "Cannot have more than one case with value '" + value + "' in switch statement");
+
+        cases.add(value);
+
+        checkLiteral(node, context);
+        var type = node.get("type");
+
+        if (!typesMatch(type, switchType))
+            error(node, "Cannot use expression of type '" + type + "' in case inside switch statement with expression of type '" + switchType + "'");
+
+        if (switchType.equals("*"))
+            switchExpression.put("type", type);
+
+        return context;
+    }
+
+    protected String checkDefault(JmmNode node, String context) {
+        var switchNode = node.getJmmParent();
+
+        if (switchNode.getOptional("hasDefault").isPresent())
+            error(node, "Cannot have more than one default case in switch statement");
+
+        switchNode.put("hasDefault", "true");
 
         return context;
     }

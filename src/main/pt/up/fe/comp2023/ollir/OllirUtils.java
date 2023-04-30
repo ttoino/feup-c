@@ -11,6 +11,7 @@ public class OllirUtils {
     private static int doWhileLabelCounter = 0;
     private static int forLabelCounter = 0;
     private static int forEachLabelCounter = 0;
+    private static int switchLabelCounter = 0;
 
     public static String getNextTemp() {
         return "__temp__" + temporaryVarCounter++;
@@ -40,6 +41,10 @@ public class OllirUtils {
             "__foreachlength__" + forEachLabelCounter,
             "__foreachindex__" + forEachLabelCounter++
         };
+    }
+
+    public static String[] getNextSwitchLabels() {
+        return new String[] { "__switch__" + switchLabelCounter + "_", "__endswitch__" + switchLabelCounter++ };
     }
 
     public static String toOllirType(Type type) {

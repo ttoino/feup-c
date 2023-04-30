@@ -82,7 +82,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         addVisit("DoStatement", this::visitDoWhileStatement);
         addVisit("ForStatement", this::visitForStatement);
         addVisit("ForEachStatement", this::visitForEachStatement);
-        addVisit("SwitchStatement", this::doNothing);
+        addVisit("SwitchStatement", this::visitSwitchStatement);
         addVisit("ReturnStatement", this::visitReturnStatement);
         addVisit("BreakStatement", this::visitBreakOrContinueStatement);
         addVisit("ContinueStatement", this::visitBreakOrContinueStatement);
@@ -366,6 +366,43 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         emitLine(indentation + 4, forEachLabels[4], ".i32 :=.i32 ", forEachLabels[4], ".i32 +.i32 1.i32;");
         emitLine(indentation + 4, "goto ", forEachLabels[0], ";");
         emitLine(indentation, forEachLabels[1], ":");
+
+        return null;
+    }
+
+
+    protected String visitSwitchStatement(JmmNode node, Integer indentation) {
+        var switchLabels = OllirUtils.getNextSwitchLabels();
+
+        node.put("breakLabel", switchLabels[1]);
+
+        var expressionNode = node.getJmmChild(0);
+        var expression = visit(expressionNode, indentation);
+
+        var defaultCase = switchLabels[1];
+        var cases = node.getChildren().subList(1, node.getNumChildren());
+
+        for (int i = 0; i < cases.size(); i++) {
+            var _case = cases.get(i);
+            if (_case.getKind().equals("DefaultStatement")) {
+                defaultCase = switchLabels[0] + i;
+                continue;
+            }
+
+            var value = visitLiteral(_case, indentation);
+            emitLine(indentation, "if(", expression, ".i32 ==.bool ", value, ".i32) goto ", switchLabels[0] + i, ";");
+        }
+
+        emitLine(indentation, "goto ", defaultCase, ";");
+
+        for (int i = 0; i < cases.size(); i++) {
+            var _case = cases.get(i);
+
+            emitLine(indentation, switchLabels[0] + i, ":");
+            visit(_case, indentation + 4);
+        }
+
+        emitLine(indentation, switchLabels[1], ":");
 
         return null;
     }

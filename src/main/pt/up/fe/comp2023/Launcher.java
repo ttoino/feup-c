@@ -73,7 +73,7 @@ public class Launcher {
 
         if (reports(config, jasminResult.getReports()) || code == null) return;
 
-        jasminResult.compile();
+        jasminResult.run();
     }
 
     private static Map<String, String> parseArgs(String[] args) {
@@ -119,6 +119,9 @@ public class Launcher {
             if (debug || report.getType() != ReportType.DEBUG)
                 out.println(type + "@" + stage + line + column + " " + report.getMessage());
         }
+
+        System.out.flush();
+        System.err.flush();
 
         return hasErrors;
     }

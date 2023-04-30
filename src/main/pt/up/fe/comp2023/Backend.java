@@ -619,7 +619,7 @@ public class Backend implements JasminBackend {
         sb.append('/');
 
         sb.append(secondOperand.getName());
-        sb.append(' ').append(this.buildJasminTypeDescriptor(instruction.getFieldType(), reports));
+        sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
 
         return sb.toString();
     }

@@ -168,7 +168,7 @@ for_inc
     ;
 
 case_statement
-    : CASE val=LITERAL COLON statement* #CaseStatement
+    : CASE value=LITERAL COLON statement* #CaseStatement
     | DEFAULT COLON statement* #DefaultStatement
     ;
 
