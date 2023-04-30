@@ -1,28 +1,15 @@
-import ioPlus;
-class ArrayAsArg {
+import io;
 
-    public int func(int[] a) {
-        int b;
-        b = a.length;
-        return b;
-    }
+class Arithmetic_and {
+	public static void main(String[] args) {
+		boolean a;
 
-    public int func2() {
-        int x;
-        int[] a;
-        ArrayAsArg c;
-        c = new ArrayAsArg();
-        a = new int[2];
-        x = c.func(a);
-        return x;
-    }
+		a = true && false;
 
-    public static void main(String[] args)
-    {
-        int x;
-        ArrayAsArg c;
-        c = new ArrayAsArg();
-        x = c.func2();
-        ioPlus.printResult(x);
-    }
+		if(a) {
+			io.print(1);
+		} else {
+			io.print(0);
+		}
+	}
 }

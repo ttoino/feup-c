@@ -12,11 +12,9 @@ import java.util.*;
 
 public class Backend implements JasminBackend {
 
-    private String superClassName;
-
-    private boolean debugMode;
-
     private static final int DEFAULT_METHOD_STACK_SIZE = 99;
+    private String superClassName;
+    private boolean debugMode;
     private int currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
 
     @Override
@@ -51,7 +49,7 @@ public class Backend implements JasminBackend {
         if (className == null) return "";
 
         if (fileName != null) {
-            if (!fileName.equals(className.concat(".jmm"))) {
+            if (!fileName.equals(className.concat(".jmm")) && this.debugMode) {
                 reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Top level classes should have the same name as the file they are defined in: expected '" + fileName + "', got '" + className + ".jmm'", new Exception("Top level classes should have the same name as the file they are defined in")));
             }
 
@@ -233,7 +231,7 @@ public class Backend implements JasminBackend {
             case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
             case CALL -> this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
             case GOTO -> this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
-            case BRANCH -> this.buildJasminBranchInstruction((OpCondInstruction) instruction, varTable, reports);
+            case BRANCH -> this.buildJasminBranchInstruction((CondBranchInstruction) instruction, varTable, reports);
             case RETURN -> this.buildJasminReturnInstruction((ReturnInstruction) instruction, varTable, reports);
             case PUTFIELD -> this.buildJasminPutfieldOperation((PutFieldInstruction) instruction, varTable, reports);
             case GETFIELD -> this.buildJasminGetfieldOperation((GetFieldInstruction) instruction, varTable, reports);
@@ -329,6 +327,12 @@ public class Backend implements JasminBackend {
 
     private String buildJasminLoadOperandInstruction(Operand op, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
+
+        if (op.getName().equals("false") || op.getName().equals("true")) {
+
+            // "true" and "false" get parsed as operands when they really should be literals, this is a hacky way of fixing that
+            return this.buildJasminLoadLiteralInstruction(new LiteralElement(op.getName().equals("true") ? "1" : "0", new Type(ElementType.BOOLEAN)), varTable, reports);
+        }
 
         var argDescriptor = varTable.get(op.getName());
         int argRegNum = argDescriptor.getVirtualReg();
@@ -489,23 +493,23 @@ public class Backend implements JasminBackend {
 
                 var className = objectClass.getName();
 
+                sb.append('\t');
                 if ("array".equals(className)) {
 
                     // there should only be one other operand, the array size. Load it and assume this is ok
                     var sizeOperand = instruction.getListOfOperands().get(0);
 
-                    sb.append('\t').append(this.buildJasminLoadElementInstruction(sizeOperand, varTable, reports)).append('\n');
+                    sb.append(this.buildJasminLoadElementInstruction(sizeOperand, varTable, reports)).append('\n');
 
                     sb.append("\tnewarray").append(' ');
-                    var elementType = ((ArrayType)instruction.getReturnType()).getElementType().getTypeOfElement();
+                    var elementType = ((ArrayType) instruction.getReturnType()).getElementType().getTypeOfElement();
 
                     if (elementType == ElementType.INT32) {
                         sb.append("int");
                     } else {
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Only int arrays are supported", new Exception("Only int arrays are supported")));
                     }
-                }
-                else
+                } else
                     sb.append("new ").append(className);
 
                 sb.append('\n');
@@ -539,7 +543,24 @@ public class Backend implements JasminBackend {
     }
 
     private String buildJasminBranchInstruction(CondBranchInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
-        return "nop\n";
+
+        var sb = new StringBuilder();
+
+        var cond = instruction.getCondition();
+
+        var inst = switch (cond.getInstType()) {
+            case UNARYOPER ->
+                    this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) cond, varTable, reports) + " ";
+            case BINARYOPER ->
+                    this.buildJasminBinaryOperatorInstruction((BinaryOpInstruction) cond, varTable, reports) + " ";
+            case NOPER ->
+                    this.buildJasminSingleOpInstruction((SingleOpInstruction) cond, varTable, reports) + "\n\tifgt "; // direct boolean
+            default -> "nop\n\t";
+        };
+
+        sb.append(inst).append(instruction.getLabel());
+
+        return sb.toString();
     }
 
     private String buildJasminReturnInstruction(ReturnInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
@@ -598,13 +619,15 @@ public class Backend implements JasminBackend {
         sb.append('/');
 
         sb.append(secondOperand.getName());
-        sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
+        sb.append(' ').append(this.buildJasminTypeDescriptor(instruction.getFieldType(), reports));
 
         return sb.toString();
     }
 
     private String buildJasminGetfieldOperation(GetFieldInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
+
+        instruction.getFieldType();
 
         var firstOperand = (Operand) instruction.getFirstOperand();
         var secondOperand = (Operand) instruction.getSecondOperand();
@@ -622,7 +645,7 @@ public class Backend implements JasminBackend {
         sb.append('/');
 
         sb.append(secondOperand.getName());
-        sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
+        sb.append(' ').append(this.buildJasminTypeDescriptor(instruction.getFieldType(), reports));
 
         return sb.toString();
     }
@@ -646,6 +669,7 @@ public class Backend implements JasminBackend {
         sb.append(this.buildJasminLoadElementInstruction(instruction.getOperand(), varTable, reports));
         sb.append('\n');
 
+        sb.append('\t');
         switch (operation.getOpType()) {
             case ADD -> {
             }
@@ -667,27 +691,18 @@ public class Backend implements JasminBackend {
             }
             case OR -> {
             }
-            case LTH -> {
-            }
-            case GTH -> {
-            }
-            case EQ -> {
-            }
-            case NEQ -> {
-            }
-            case LTE -> {
-            }
-            case GTE -> {
-            }
+            case LTH -> sb.append("iflt");
+            case GTH -> sb.append("ifgt");
+            case EQ -> sb.append("ifeq");
+            case NEQ -> sb.append("ifne");
+            case LTE -> sb.append("ifle");
+            case GTE -> sb.append("ifge");
             case ANDB -> {
             }
             case ORB -> {
             }
-            case NOTB -> {
-            }
-            case NOT -> {
-                sb.append("not");
-            }
+            case NOTB -> sb.append("ifle");
+            case NOT -> sb.append("not");
         }
 
         return sb.toString();
@@ -709,59 +724,48 @@ public class Backend implements JasminBackend {
         };
         if ("marker".equals(dType)) return "";
 
-        sb.append('\t');
-        sb.append(this.buildJasminLoadElementInstruction(instruction.getLeftOperand(), varTable, reports));
-        sb.append('\n');
+        if (
+            operation.getOpType() == OperationType.ADD &&
+            instruction.getLeftOperand() instanceof Operand &&
+            instruction.getRightOperand() instanceof LiteralElement literal &&
+            literal.getType().getTypeOfElement() == ElementType.INT32 &&
+            literal.getLiteral().equals("1")
+        ) {
+            sb.append("\tiinc ").append(varTable.get(((Operand)instruction.getLeftOperand()).getName()).getVirtualReg()).append(" 1");
+       } else {
+            sb.append('\t');
+            sb.append(this.buildJasminLoadElementInstruction(instruction.getLeftOperand(), varTable, reports));
+            sb.append('\n');
 
-        sb.append('\t');
-        sb.append(this.buildJasminLoadElementInstruction(instruction.getRightOperand(), varTable, reports));
-        sb.append('\n');
 
-        sb.append('\t').append(dType);
-        switch (operation.getOpType()) {
+            sb.append('\t');
+            sb.append(this.buildJasminLoadElementInstruction(instruction.getRightOperand(), varTable, reports));
+            sb.append('\n');
 
-            case ADD -> {
-                sb.append("add");
-            }
-            case SUB -> {
-                sb.append("sub");
-            }
-            case MUL -> {
-                sb.append("mul");
-            }
-            case DIV -> {
-                sb.append("div");
-            }
-            case SHR -> {
-            }
-            case SHL -> {
-            }
-            case SHRR -> {
-            }
-            case XOR -> {
-                sb.append("xor");
-            }
-            case AND, ANDB -> {
-                sb.append("and");
-            }
-            case OR, ORB -> {
-                sb.append("or");
-            }
-            case LTH -> {
-            }
-            case GTH -> {
-            }
-            case EQ -> {
-            }
-            case NEQ -> {
-            }
-            case LTE -> {
-            }
-            case GTE -> {
-            }
-            case NOTB -> {
-            }
-            case NOT -> {
+            sb.append('\t');
+            switch (operation.getOpType()) {
+
+                case ADD -> sb.append(dType).append("add");
+                case SUB -> sb.append(dType).append("sub");
+                case MUL -> sb.append(dType).append("mul");
+                case DIV -> sb.append(dType).append("div");
+                case SHR -> {
+                }
+                case SHL -> {
+                }
+                case SHRR -> {
+                }
+                case XOR -> sb.append(dType).append("xor");
+                case AND, ANDB -> sb.append(dType).append("and");
+                case OR, ORB -> sb.append(dType).append("or");
+                case LTH -> sb.append("if_icmplt");
+                case GTH -> sb.append("if_icmpgt");
+                case EQ -> sb.append("if_icmpeq");
+                case NEQ -> sb.append("if_icmpne");
+                case LTE -> sb.append("if_icmple");
+                case GTE -> sb.append("if_icmpge");
+                case NOTB -> sb.append("ifle");
+                case NOT -> sb.append("not");
             }
         }
 
