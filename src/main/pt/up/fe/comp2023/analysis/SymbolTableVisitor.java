@@ -31,6 +31,7 @@ class SymbolTableVisitor extends AJmmVisitor<Object, Object> {
         addVisit("VoidType", this::visitType);
         addVisit("ComplexType", this::visitType);
         addVisit("ArrayType", this::visitType);
+        addVisit("ForEachStatement", this::visitForEach);
     }
 
     private Object visitOther(JmmNode node, Object context) {
@@ -50,12 +51,12 @@ class SymbolTableVisitor extends AJmmVisitor<Object, Object> {
     }
 
     private Object visitParentClass(JmmNode node, Object context) {
-
         StringBuilder superNameBuilder = new StringBuilder();
 
         var parentPackage = node.getObjectAsList("parentPackage", String.class);
 
-        superNameBuilder.append(parentPackage.stream().map(s -> s + '.').collect(Collectors.joining()));
+        for (var p : parentPackage)
+            superNameBuilder.append(p).append('.');
         superNameBuilder.append(node.get("parentClass"));
 
         table.setSuperName(superNameBuilder.toString());
@@ -147,5 +148,20 @@ class SymbolTableVisitor extends AJmmVisitor<Object, Object> {
         else table.addField(symbol);
 
         return symbol;
+    }
+
+    private Object visitForEach(JmmNode node, Object context) {
+        assert context instanceof Method;
+
+        var type = (Type) visit(node.getJmmChild(0), context);
+        var id = node.get("id");
+
+        var symbol = new Symbol(type, id);
+        ((Method) context).getLocalVariables().add(symbol);
+
+        for (var child : node.getChildren())
+            visit(child, context);
+
+        return context;
     }
 }

@@ -140,7 +140,7 @@ statement
     | IF LP expression RP statement ELSE statement #IfStatement
     | WHILE LP expression RP statement #WhileStatement
     | DO statement WHILE LP expression RP SC #DoStatement
-    | FOR LP expression? SC expression? SC expression? RP statement #ForStatement
+    | FOR LP for_init SC for_term SC for_inc RP statement #ForStatement
     | FOR LP type id=ID COLON expression RP statement #ForEachStatement
     | SWITCH LP expression RP LB case_statement* RB #SwitchStatement
     | RETURN expression? SC #ReturnStatement
@@ -149,6 +149,22 @@ statement
     | expression SC #ExpressionStatement
     | variable_declaration SC #AssignmentStatement
     | SC #EmptyStatement
+    ;
+
+for_init
+    : assignment_statement
+    | expression ( COMMA expression )*
+    |
+    ;
+
+for_term
+    : expression
+    |
+    ;
+
+for_inc
+    : expression ( COMMA expression )*
+    |
     ;
 
 case_statement
@@ -184,7 +200,7 @@ expression
     | expression op='&&' expression #BinaryOp
     | expression op='||' expression #BinaryOp
     | expression QM expression COLON expression #TernaryOp
-    | expression op=('=' | '+=' | '-=' | '*=' | '/=' | '%=' | '<<=' | '>>=' | '>>>=') expression #AssignmentExpression
+    | expression op=('=' | '+=' | '-=' | '*=' | '/=' | '%=' | '&=' | '^=' | '|=' | '<<=' | '>>=' | '>>>=') expression #AssignmentExpression
     | value=LITERAL #LiteralExpression
     | id=ID #IdentifierExpression
     | THIS #ThisExpression

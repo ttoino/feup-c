@@ -54,6 +54,7 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
         addVisit("WhileStatement", this::checkWhile);
         addVisit("DoStatement", this::checkDo);
         addVisit("ForStatement", this::checkFor);
+        addVisit("ForTerm", this::checkForTerminal);
         addVisit("ForEachStatement", this::checkForEach);
         addVisit("SwitchStatement", this::checkSwitch);
         addVisit("ComplexType", this::checkComplexType);
@@ -423,17 +424,23 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
     }
 
     protected String checkFor(JmmNode node, String context) {
-        // var type = node.getJmmChild(0).get("type");
-        // if (!type.equals("boolean"))
-        //     error(node, "Cannot use expression of type '" + type + "' inside if statement");
+        return context;
+    }
+
+    protected String checkForTerminal(JmmNode node, String context) {
+        var type = node.getJmmChild(0).get("type");
+        if (!typesMatch(type, "boolean"))
+            error(node, "Cannot use expression of type '" + type + "' as for statement terminal");
 
         return context;
     }
 
     protected String checkForEach(JmmNode node, String context) {
-        // var type = node.getJmmChild(0).get("type");
-        // if (!type.equals("boolean"))
-        //     error(node, "Cannot use expression of type '" + type + "' inside if statement");
+        var type = node.getJmmChild(0).get("type");
+        var expressionType = node.getJmmChild(1).get("type");
+
+        if (!typesMatch(expressionType, type + "[]"))
+            error(node, "Cannot use expression of type '" + expressionType + "' as array of '" + type + "' in for each statement");
 
         return context;
     }

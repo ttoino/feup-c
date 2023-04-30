@@ -10,7 +10,7 @@ public final class Constants {
     };
 
     public static final String[] INTEGER_OPS = {
-            "++", "--", "+", "-", "~", "*", "/", "%", "<<", ">>", ">>>", ">", "<", ">=", "<=", "&", "^", "|", "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", ">>>="
+            "++", "--", "+", "-", "~", "*", "/", "%", "<<", ">>", ">>>", ">", "<", ">=", "<=", "&", "^", "|", "=", "+=", "-=", "*=", "/=", "%=", "&=", "^=", "|=", "<<=", ">>=", ">>>="
     };
 
     public static final String[] FLOAT_TYPES = {
@@ -22,7 +22,7 @@ public final class Constants {
     };
 
     public static final String[] BOOLEAN_OPS = {
-            "!", "&&", "||", "&", "|", "^"
+            "!", "&&", "||", "&", "|", "^", "&=", "|=", "^="
     };
 
     public static final String[] UNIVERSAL_OPS = {

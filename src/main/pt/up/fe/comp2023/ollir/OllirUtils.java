@@ -9,6 +9,8 @@ public class OllirUtils {
     private static int ifLabelCounter = 0;
     private static int whileLabelCounter = 0;
     private static int doWhileLabelCounter = 0;
+    private static int forLabelCounter = 0;
+    private static int forEachLabelCounter = 0;
 
     public static String getNextTemp() {
         return "__temp__" + temporaryVarCounter++;
@@ -24,6 +26,20 @@ public class OllirUtils {
 
     public static String[] getNextDoWhileLabels() {
         return new String[] { "__dowhile__" + doWhileLabelCounter, "__enddowhile__" + doWhileLabelCounter++ };
+    }
+
+    public static String[] getNextForLabels() {
+        return new String[] { "__for__" + forLabelCounter, "__endfor__" + forLabelCounter++ };
+    }
+
+    public static String[] getNextForEachLabels() {
+        return new String[] {
+            "__foreach__" + forEachLabelCounter,
+            "__endforeach__" + forEachLabelCounter,
+            "__foreacharray__" + forEachLabelCounter,
+            "__foreachlength__" + forEachLabelCounter,
+            "__foreachindex__" + forEachLabelCounter++
+        };
     }
 
     public static String toOllirType(Type type) {
