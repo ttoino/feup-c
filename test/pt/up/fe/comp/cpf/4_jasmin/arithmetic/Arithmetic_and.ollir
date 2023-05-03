@@ -6,7 +6,7 @@ Arithmetic_and {
     }
 
     .method public static main(args.array.String).V {
-a.bool :=.bool true.bool &&.bool false.bool;
+a.bool :=.bool 1.bool &&.bool 0.bool;
 
 if (a.bool) goto ifbody_0;
     invokestatic(io, "print", 0.i32).V;

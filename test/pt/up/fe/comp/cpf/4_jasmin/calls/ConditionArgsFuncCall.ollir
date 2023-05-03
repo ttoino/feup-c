@@ -14,8 +14,8 @@ d.ConditionArgsFuncCall :=.ConditionArgsFuncCall new(ConditionArgsFuncCall).Cond
 invokespecial(d.ConditionArgsFuncCall,"<init>").V;
 a.i32 :=.i32 10.i32;
 b.i32 :=.i32 5.i32;
-i.bool :=.bool true.bool;
-j.bool :=.bool false.bool;
+i.bool :=.bool 1.bool;
+j.bool :=.bool 0.bool;
 temp0.bool :=.bool a.i32 <.bool b.i32;
 temp1.bool :=.bool i.bool &&.bool j.bool;
 temp4.bool :=.bool a.i32 <.bool b.i32;

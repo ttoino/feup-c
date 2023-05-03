@@ -7,14 +7,14 @@ SimpleIfElseNot {
 
     .method public static main(args.array.String).V {
 
-if (true.bool) goto ifbody_0;
+if (1.bool) goto ifbody_0;
     invokestatic(io, "println", 20.i32).V;
 goto endif_0;
 ifbody_0:
     invokestatic(io, "println", 10.i32).V;
 endif_0:
 
-if (false.bool) goto ifbody_1;
+if (0.bool) goto ifbody_1;
     invokestatic(io, "print", 200.i32).V;
 goto endif_1;
 ifbody_1:
