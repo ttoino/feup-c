@@ -16,6 +16,7 @@ public class ConstantFoldingVisitor extends PostorderJmmVisitor<Void, Boolean> {
         addVisit("BinaryOp", this::visitBinaryOp);
         addVisit("UnaryPreOp", this::visitUnaryPreOp);
         addVisit("UnaryPostOp", this::visitUnaryPostOp);
+        addVisit("TernaryOp", this::visitTernaryOp);
 
         setDefaultVisit(this::visitOther);
         setReduceSimple(Boolean::logicalOr);
@@ -104,7 +105,24 @@ public class ConstantFoldingVisitor extends PostorderJmmVisitor<Void, Boolean> {
     }
 
     protected Boolean visitUnaryPostOp(JmmNode node, Void context) {
-
         return false;
+    }
+
+    protected Boolean visitTernaryOp(JmmNode node, Void context) {
+        var first = node.getJmmChild(0);
+        var second = node.getJmmChild(1);
+        var third = node.getJmmChild(2);
+
+        if (!first.getKind().equals("LiteralExpression"))
+            return false;
+
+        var firstValue = Boolean.parseBoolean(first.get("value"));
+
+        if (firstValue)
+            node.replace(second);
+        else
+            node.replace(third);
+
+        return true;
     }
 }

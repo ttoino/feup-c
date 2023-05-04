@@ -149,7 +149,8 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
     }
 
     protected String checkUnary(JmmNode node, String context) {
-        var type = node.getJmmChild(0).get("type");
+        var child = node.getJmmChild(0);
+        var type = child.get("type");
         var op = node.get("op");
 
         if (!(typesMatch(type, "int") && in(INTEGER_OPS, op)
@@ -157,6 +158,9 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
                 || typesMatch(type, "boolean") && in(BOOLEAN_OPS, op)
                 || in(UNIVERSAL_OPS, op)))
             error(node, "Cannot use '" + op + "' on expression of type '" + type + "'");
+
+        if ((op.equals("++") || op.equals("--")) && child.getOptional("canAssign").isEmpty())
+            error(node, "Cannot use '" + op + "' on this expression");
 
         node.put("type", type);
 

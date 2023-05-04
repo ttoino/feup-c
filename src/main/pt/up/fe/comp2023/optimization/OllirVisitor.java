@@ -591,18 +591,22 @@ public class OllirVisitor extends AJmmVisitor<Integer, String> {
     private String visitUnaryPostOp(JmmNode jmmNode, Integer indentation) {
         var lhsNode = jmmNode.getJmmChild(0);
         lhsNode.put("type", jmmNode.get("type"));
+        lhsNode.put("topLevel", "true");
         var lhs = visit(lhsNode, indentation);
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
-        var operator = jmmNode.get("op") + "." + type;
-
-        var line = lhs + " " + operator;
-
-        if (jmmNode.getOptional("topLevel").isPresent())
-            return line;
+        var operator = jmmNode.get("op").charAt(0) + "." + type;
 
         var temp = OllirUtils.getNextTemp() + "." + type;
-        emitLine(indentation, temp, " :=.", type, " ", line, ";");
+        emitLine(indentation, temp, " :=.", type, " ", lhs, ";");
+
+        if (lhs.startsWith("getfield(") || lhs.startsWith("getstatic(")) {
+            var temp2 = OllirUtils.getNextTemp() + "." + type;
+            emitLine(indentation, temp2, " :=.", type, " ", temp, " ", operator, " 1.", type, ";");
+            emitLine(indentation, "put", lhs.substring(3, lhs.lastIndexOf(")")), ", ", temp2, ").V;");
+        } else {
+            emitLine(indentation, lhs, " :=.", type, " ", temp, " ", operator, " 1.", type, ";");
+        }
 
         return temp;
     }
@@ -610,16 +614,32 @@ public class OllirVisitor extends AJmmVisitor<Integer, String> {
     private String visitUnaryPreOp(JmmNode jmmNode, Integer indentation) {
         var rhsNode = jmmNode.getJmmChild(0);
         rhsNode.put("type", jmmNode.get("type"));
-        var rhs = visit(rhsNode, indentation);
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
         var operator = jmmNode.get("op") + "." + type;
         if (operator.matches("[-+]\\."))
             operator = "0.i32 " + operator;
-        else if (operator.charAt(0) == operator.charAt(1))
-            // TODO: Doesn't assign new value to variable
-            operator = "1.i32 " + operator.substring(1);
 
+        // ++ and -- are special boys
+        else if (operator.charAt(0) == operator.charAt(1)) {
+            rhsNode.put("topLevel", "true");
+            var rhs = visit(rhsNode, indentation);
+
+            operator = operator.substring(1);
+
+            if (rhs.startsWith("getfield(") || rhs.startsWith("getstatic(")) {
+                var temp = OllirUtils.getNextTemp() + "." + type;
+                emitLine(indentation, temp, " :=.", type, " ", rhs, ";");
+                emitLine(indentation, temp, " :=.", type, " ", temp, " ", operator, " 1.", type, ";");
+                emitLine(indentation, "put", rhs.substring(3, rhs.lastIndexOf(")")), ", ", temp, ").V;");
+                return temp;
+            } else {
+                emitLine(indentation, rhs, " :=.", type, " ", rhs, " ", operator, " 1.", type, ";");
+                return rhs;
+            }
+        }
+
+        var rhs = visit(rhsNode, indentation);
         var line = operator + " " + rhs;
 
         if (jmmNode.getOptional("topLevel").isPresent())

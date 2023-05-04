@@ -21,6 +21,8 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         addVisit("AssignmentExpression", this::visitAssignment);
         addVisit("VariableDeclaration", this::visitVariableDeclaration);
         addVisit("IdentifierExpression", this::visitIdentifier);
+        addVisit("UnaryPostOp", this::visitUnaryOp);
+        addVisit("UnaryPreOp", this::visitUnaryOp);
 
         setDefaultVisit(this::visitOther);
         setReduceSimple(Boolean::logicalOr);
@@ -55,13 +57,14 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         if (!origin.equals("local"))
             return false;
 
+        if (node.getAncestor("IfStatement").isPresent()) {
+            values.remove(id);
+            return false;
+        }
+
         values.put(id, value);
 
-        var parent = node.getJmmParent();
-        if (parent.getKind().equals("ExpressionStatement"))
-            parent.delete();
-
-        return true;
+        return false;
     }
 
     private Boolean visitVariableDeclaration(JmmNode node, Void context) {
@@ -81,14 +84,25 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         if (!origin.equals("local"))
             return false;
 
-        values.put(id, value);
-        node.getAncestor("AssignmentStatement").ifPresent(JmmNode::delete);
+        if (node.getAncestor("IfStatement").isPresent()) {
+            values.remove(id);
+            return false;
+        }
 
-        return true;
+        values.put(id, value);
+
+        return false;
+    }
+
+    private Boolean visitUnaryOp(JmmNode node, Void context) {
+        node.getJmmChild(0).put("isLeft", "true");
+
+        return false;
     }
 
     protected Boolean visitIdentifier(JmmNode node, Void context) {
-        if (node.getOptional("isLeft").isPresent())
+        if (node.getOptional("isLeft").isPresent()
+            || node.getAncestor("IfStatement").isPresent())
             return false;
 
         var id = node.get("id");
