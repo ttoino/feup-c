@@ -94,23 +94,37 @@ class SemanticAnalysisVisitor extends AJmmVisitor<String, String> {
 
         for (var imp : table.getImports()) {
             var split = imp.split("\\.");
-            if (split[split.length - 1].equals(id))
+            if (split[split.length - 1].equals(id)) {
                 type = id;
+                node.put("origin", "import");
+                break;
+            }
         }
         // TODO: static fields
         if (!isStatic)
             for (var field : table.getFields())
-                if (field.getName().equals(id))
+                if (field.getName().equals(id)) {
                     type = field.getType().print();
+                    node.put("origin", "field");
+                    break;
+                }
         for (var parameter : table.getParametersTry(context).orElse(new ArrayList<>()))
-            if (parameter.getName().equals(id))
+            if (parameter.getName().equals(id)) {
                 type = parameter.getType().print();
+                node.put("origin", "parameter");
+                break;
+            }
         for (var local : table.getLocalVariablesTry(context).orElse(new ArrayList<>()))
-            if (local.getName().equals(id))
+            if (local.getName().equals(id)) {
                 type = local.getType().print();
+                node.put("origin", "local");
+                break;
+            }
 
-        if (in(UNIVERSAL_IMPORTS, id))
+        if (in(UNIVERSAL_IMPORTS, id)) {
             type = id;
+            node.put("origin", "import");
+        }
 
         if (type == null) {
             error(node, "Cannot access variable '" + id + "' without declaration");

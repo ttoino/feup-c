@@ -53,15 +53,9 @@ public class Launcher {
 
         Optimizer optimizer = new Optimizer();
 
-        var optimize = Boolean.parseBoolean(config.get("optimize"));
-
-        if (optimize)
-            semanticsResult = optimizer.optimize(semanticsResult);
-
+        semanticsResult = optimizer.optimize(semanticsResult);
         OllirResult ollirResult = optimizer.toOllir(semanticsResult);
-
-        if (optimize)
-            ollirResult = optimizer.optimize(ollirResult);
+        ollirResult = optimizer.optimize(ollirResult);
 
         if (reports(config, ollirResult.getReports())) return;
 
