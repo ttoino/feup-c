@@ -10,9 +10,7 @@ import pt.up.fe.comp.jmm.report.Stage;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Analysis implements JmmAnalysis {
-    private final List<Report> reports = new ArrayList<>();
-
+public class Analyzer implements JmmAnalysis {
     @Override
     public JmmSemanticsResult semanticAnalysis(JmmParserResult jmmParserResult) {
         var table = new JmmSymbolTable(jmmParserResult.getRootNode());

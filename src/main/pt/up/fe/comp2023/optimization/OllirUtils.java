@@ -1,8 +1,7 @@
-package pt.up.fe.comp2023.ollir;
+package pt.up.fe.comp2023.optimization;
 
 import pt.up.fe.comp.jmm.analysis.table.Symbol;
 import pt.up.fe.comp.jmm.analysis.table.Type;
-import pt.up.fe.comp.jmm.ast.JmmNode;
 
 public class OllirUtils {
     private static int temporaryVarCounter = 0;

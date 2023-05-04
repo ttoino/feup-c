@@ -1,4 +1,4 @@
-package pt.up.fe.comp2023.ollir;
+package pt.up.fe.comp2023.optimization;
 
 import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
@@ -11,7 +11,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class OllirBuilder extends AJmmVisitor<Integer, String> {
+public class OllirVisitor extends AJmmVisitor<Integer, String> {
 
     private final StringBuilder code = new StringBuilder();
 
@@ -21,7 +21,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
     private boolean visitedConstructor = false;
 
-    public OllirBuilder(JmmSymbolTable table) {
+    public OllirVisitor(JmmSymbolTable table) {
         this.table = table;
     }
 
@@ -587,6 +587,7 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
         return temp;
     }
 
+    // TODO
     private String visitUnaryPostOp(JmmNode jmmNode, Integer indentation) {
         var lhsNode = jmmNode.getJmmChild(0);
         lhsNode.put("type", jmmNode.get("type"));
@@ -613,8 +614,11 @@ public class OllirBuilder extends AJmmVisitor<Integer, String> {
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
         var operator = jmmNode.get("op") + "." + type;
-        if (operator.startsWith("-."))
+        if (operator.matches("[-+]\\."))
             operator = "0.i32 " + operator;
+        else if (operator.charAt(0) == operator.charAt(1))
+            // TODO: Doesn't assign new value to variable
+            operator = "1.i32 " + operator.substring(1);
 
         var line = operator + " " + rhs;
 
