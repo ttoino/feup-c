@@ -102,7 +102,11 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
 
     protected Boolean visitIdentifier(JmmNode node, Void context) {
         if (node.getOptional("isLeft").isPresent()
-            || node.getAncestor("IfStatement").isPresent())
+            || node.getAncestor("IfStatement").isPresent()
+            || node.getAncestor("WhileStatement").isPresent()
+            || node.getAncestor("DoStatement").isPresent()
+            || node.getAncestor("ForStatement").isPresent()
+            || node.getAncestor("ForEachStatement").isPresent())
             return false;
 
         var id = node.get("id");
