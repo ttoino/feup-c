@@ -13,6 +13,9 @@ public class ASTSimplificationVisitor extends PostorderJmmVisitor<Void, Boolean>
     protected void buildVisitor() {
         addVisit("ExplicitPriority", this::visitExplicitPriority);
         addVisit("IfStatement", this::visitIfStatement);
+        addVisit("ReturnStatement", this::visitReturnStatement);
+        addVisit("BreakStatement", this::visitReturnStatement);
+        addVisit("ContinueStatement", this::visitReturnStatement);
 
         setDefaultVisit(this::visitOther);
         setReduceSimple(Boolean::logicalOr);
@@ -44,5 +47,18 @@ public class ASTSimplificationVisitor extends PostorderJmmVisitor<Void, Boolean>
         }
 
         return false;
+    }
+
+    protected boolean visitReturnStatement(JmmNode node, Void context) {
+        var parent = node.getJmmParent();
+        var nodeIndex = node.getIndexOfSelf();
+
+        if (parent.getNumChildren() == nodeIndex + 1)
+            return false;
+
+        for (int i = parent.getNumChildren() - 1; i > nodeIndex; --i)
+            parent.removeJmmChild(i);
+
+        return true;
     }
 }

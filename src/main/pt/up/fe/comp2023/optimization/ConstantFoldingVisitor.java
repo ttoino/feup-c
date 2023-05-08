@@ -117,11 +117,7 @@ public class ConstantFoldingVisitor extends PostorderJmmVisitor<Void, Boolean> {
             return false;
 
         var firstValue = Boolean.parseBoolean(first.get("value"));
-
-        if (firstValue)
-            node.replace(second);
-        else
-            node.replace(third);
+        node.replace(firstValue ? second : third);
 
         return true;
     }
