@@ -26,8 +26,6 @@ public class Optimizer implements JmmOptimization {
 
         var node = semanticsResult.getRootNode();
 
-        new ASTSimplificationVisitor().visit(node);
-
         var cont = true;
         while (cont) {
             cont = false;
