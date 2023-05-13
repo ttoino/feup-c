@@ -151,6 +151,12 @@ public class Cpf4_Jasmin {
 
     /*checks if an addition is correct (more than 2 values)*/
     @Test
+    public void section3_ControlFlow_Inverted() {
+        CpUtils.runJasmin(getJasminResult("control_flow/SimpleControlFlow.ollir"), "Result: 3");
+    }
+
+    /*checks OLLIR code that uses >= for an inverted condition */
+    @Test
     public void section3_ControlFlow_If_Not_Simple() {
         CpUtils.runJasmin(getJasminResult("control_flow/SimpleIfElseNot.ollir"), "10\n200");
     }
