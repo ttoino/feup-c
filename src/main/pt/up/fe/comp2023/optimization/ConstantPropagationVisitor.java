@@ -211,17 +211,40 @@ public class ConstantPropagationVisitor extends AJmmVisitor<Void, Boolean> {
     }
 
     protected Boolean visitLoop(JmmNode node, Void context) {
-        var tempVars = new TreeMap<>(variables);
-        variables.clear();
+        var modifiedVariables = modifiedVariables(node);
+        modifiedVariables.forEach(variables::remove);
 
-        var r = visitChildren(node, context);
+        return visitChildren(node, context);
+    }
 
-        var newVars = new TreeMap<>(variables);
-        variables.clear();
-        variables.putAll(tempVars);
-        newVars.keySet().forEach(variables::remove);
+    private Set<String> modifiedVariables(JmmNode node) {
+        var r = new HashSet<String>();
+        Stack<JmmNode> stack = new Stack<>();
+        stack.push(node);
 
-        r |= visitChildren(node, context);
+        while (!stack.isEmpty()) {
+            var n = stack.pop();
+
+            switch (n.getKind()) {
+                case "VariableDeclaration" -> r.add(n.get("id"));
+                case "AssignmentExpression" -> {
+                    var left = n.getJmmChild(0);
+
+                    if (left.getKind().equals("IdentifierExpression"))
+                        r.add(left.get("id"));
+                }
+                case "UnaryPreOp", "UnaryPostOp" -> {
+                    var child = n.getJmmChild(0);
+
+                    if (child.getKind().equals("IdentifierExpression")
+                        && (n.get("op").equals("++") || n.get("op").equals("--")))
+                        r.add(child.get("id"));
+                }
+            }
+
+            for (var child : n.getChildren())
+                stack.push(child);
+        }
 
         return r;
     }
