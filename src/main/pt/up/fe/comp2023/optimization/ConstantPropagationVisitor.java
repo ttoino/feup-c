@@ -1,13 +1,11 @@
 package pt.up.fe.comp2023.optimization;
 
+import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
-import pt.up.fe.comp.jmm.ast.JmmNodeImpl;
-import pt.up.fe.comp.jmm.ast.PreorderJmmVisitor;
 
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
-public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean> {
+public class ConstantPropagationVisitor extends AJmmVisitor<Void, Boolean> {
     private final Map<String, Variable> variables = new TreeMap<>();
 
     public ConstantPropagationVisitor() {
@@ -20,56 +18,62 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
             || node.getAncestor("WhileStatement").isPresent()
             || node.getAncestor("DoStatement").isPresent()
             || node.getAncestor("ForStatement").isPresent()
-            || node.getAncestor("ForEachStatement").isPresent();
-    }
-
-    @Override
-    public Boolean visit(JmmNode jmmNode, Void data) {
-        var r = super.visit(jmmNode, data);
-
-        if (jmmNode.getKind().equals("MethodDeclaration")) {
-            for (var var : variables.values()) {
-                if (var.usages == 0 && var.node != null)
-                    var.node.delete();
-            }
-
-            variables.clear();
-        }
-
-        return r;
+            || node.getAncestor("ForEachStatement").isPresent()
+            || node.getAncestor("SwitchStatement").isPresent();
     }
 
     @Override
     protected void buildVisitor() {
-        addVisit("Program", this::visitProgram);
         addVisit("AssignmentExpression", this::visitAssignment);
         addVisit("VariableDeclaration", this::visitVariableDeclaration);
         addVisit("IdentifierExpression", this::visitIdentifier);
         addVisit("UnaryPostOp", this::visitUnaryOp);
         addVisit("UnaryPreOp", this::visitUnaryOp);
 
-        setDefaultVisit(this::visitOther);
-        setReduceSimple(Boolean::logicalOr);
+        addVisit("IfStatement", this::visitConditional);
+        addVisit("SwitchStatement", this::visitConditional);
+        addVisit("WhileStatement", this::visitLoop);
+        addVisit("DoStatement", this::visitLoop);
+        addVisit("ForStatement", this::visitLoop);
+        addVisit("ForEachStatement", this::visitLoop);
+
+        addVisit("MethodDeclaration", this::visitMethod);
+        addVisit("ConstructorDeclaration", this::visitMethod);
+
+        setDefaultVisit(this::visitChildren);
     }
 
-    private Boolean visitOther(JmmNode node, Void context) {
-        return false;
+    private Boolean visitChildren(JmmNode node, Void context) {
+        boolean r = false;
+
+        for (var child : node.getChildren())
+            r |= visit(child, context);
+
+        return r;
     }
 
-    private Boolean visitProgram(JmmNode node, Void context) {
+    private Boolean visitMethod(JmmNode node, Void context) {
+        var r = visitChildren(node, context);
+
+        for (var var : variables.values())
+            if (var.usages == 0 && var.node != null)
+                var.node.delete();
+
         variables.clear();
-        return false;
+
+        return r;
     }
 
     private Boolean visitAssignment(JmmNode node, Void context) {
         var left = node.getJmmChild(0);
         var right = node.getJmmChild(1);
+
+        boolean r = visit(right, context);
+
         var op = node.get("op");
 
         if (!left.getKind().equals("IdentifierExpression"))
-            return false;
-
-        left.put("isLeft", "true");
+            return r;
 
         var id = left.get("id");
         var origin = left.get("origin");
@@ -83,7 +87,7 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         }
 
         if (!right.getKind().equals("LiteralExpression"))
-            return false;
+            return r;
 
         var value = right.get("value");
 
@@ -97,11 +101,11 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         }
 
         if (!origin.equals("local") || isInControlFlow(node))
-            return false;
+            return r;
 
         variables.put(id, new Variable(node.getJmmParent().getKind().equals("ExpressionStatement") ? node.getJmmParent() : null, value));
 
-        return false;
+        return r;
     }
 
     private Boolean visitVariableDeclaration(JmmNode node, Void context) {
@@ -110,6 +114,7 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         var origin = node.get("origin");
         var type = node.get("type");
         var value = ConstantUtils.defaultValue(type);
+        var r = false;
 
         if (var != null) {
             if (var.usages == 0 && var.node != null)
@@ -120,6 +125,8 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
 
         if (node.getNumChildren() == 2) {
             var right = node.getJmmChild(1);
+
+            r = visit(right, context);
 
             if (!right.getKind().equals("LiteralExpression"))
                 return false;
@@ -132,19 +139,18 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
 
         variables.put(id, new Variable(node.getJmmParent().getJmmParent(), value));
 
-        return false;
+        return r;
     }
 
     private Boolean visitUnaryOp(JmmNode node, Void context) {
+        var child = node.getJmmChild(0);
         var op = node.get("op");
 
         if (!op.equals("++") && !op.equals("--"))
-            return false;
+            return visit(child);
 
-        var id = node.getJmmChild(0).get("id");
+        var id = child.get("id");
         variables.remove(id);
-
-        node.getJmmChild(0).put("isLeft", "true");
 
         return false;
     }
@@ -156,18 +162,68 @@ public class ConstantPropagationVisitor extends PreorderJmmVisitor<Void, Boolean
         if (var == null)
             return false;
 
-        if (node.getOptional("isLeft").isPresent())
-            return false;
-
-        var.usages++;
-
-        if (isInControlFlow(node))
-            return false;
-
         node.replace(ConstantUtils.literal(var.value, node.get("type")));
-        var.usages--;
 
         return true;
+    }
+
+    protected Boolean visitConditional(JmmNode node, Void context) {
+        var condition = node.getJmmChild(0);
+        var r = visit(condition, context);
+
+        var tempVars = new TreeMap<>(variables);
+        var newVars = new HashSet<TreeMap<String, Variable>>();
+
+        for (int i = 1; i < node.getNumChildren(); i++) {
+            var child = node.getJmmChild(i);
+            variables.clear();
+            variables.putAll(tempVars);
+            r |= visit(child, context);
+            newVars.add(new TreeMap<>(variables));
+        }
+
+        variables.clear();
+
+        Set<String> keys = null;
+
+        for (var vars : newVars) {
+            if (keys == null)
+                keys = vars.keySet();
+            else
+                keys.retainAll(vars.keySet());
+        }
+
+        if (keys != null)
+            outer: for (var key : keys) {
+                Variable var = null;
+
+                for (var vars : newVars)
+                    if (var == null)
+                        var = vars.get(key);
+                    else if (!var.value.equals(vars.get(key).value))
+                        continue outer;
+
+                if (var != null)
+                    variables.put(key, var);
+            }
+
+        return r;
+    }
+
+    protected Boolean visitLoop(JmmNode node, Void context) {
+        var tempVars = new TreeMap<>(variables);
+        variables.clear();
+
+        var r = visitChildren(node, context);
+
+        var newVars = new TreeMap<>(variables);
+        variables.clear();
+        variables.putAll(tempVars);
+        newVars.keySet().forEach(variables::remove);
+
+        r |= visitChildren(node, context);
+
+        return r;
     }
 
     private static class Variable {
