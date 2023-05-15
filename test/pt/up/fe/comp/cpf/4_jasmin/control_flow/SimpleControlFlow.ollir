@@ -1,7 +1,7 @@
 import ioPlus;
 SimpleControlFlow {
 	.construct SimpleControlFlow().V {
-		invokespecial(this, "").V;
+		invokespecial(this, "<init>").V;
 	}
 
 	.method public static main(args.array.String).V {

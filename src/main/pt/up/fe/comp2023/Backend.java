@@ -16,6 +16,7 @@ public class Backend implements JasminBackend {
     private String superClassName;
     private boolean debugMode;
     private int currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
+    private int currentConditional = 0;
 
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
@@ -458,7 +459,6 @@ public class Backend implements JasminBackend {
                 });
 
                 sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
-
             }
             case invokestatic -> {
                 Operand calledObject = (Operand) instruction.getFirstArg();
@@ -508,6 +508,7 @@ public class Backend implements JasminBackend {
                         sb.append("int");
                     } else {
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Only int arrays are supported", new Exception("Only int arrays are supported")));
+                        return "";
                     }
                 } else
                     sb.append("new ").append(className);
@@ -550,15 +551,17 @@ public class Backend implements JasminBackend {
 
         var inst = switch (cond.getInstType()) {
             case UNARYOPER ->
-                    this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) cond, varTable, reports) + " ";
+                    this.buildJasminUnaryOperatorInstruction((UnaryOpInstruction) cond, varTable, reports) + " "; // negated boolean
             case BINARYOPER ->
-                    this.buildJasminBinaryOperatorInstruction((BinaryOpInstruction) cond, varTable, reports) + " ";
+                    this.buildJasminBinaryOperatorInstruction((BinaryOpInstruction) cond, varTable, reports) + " "; // conditional expression
             case NOPER ->
-                    this.buildJasminSingleOpInstruction((SingleOpInstruction) cond, varTable, reports) + "\n\tifgt "; // direct boolean
-            default -> "nop\n\t";
+                    this.buildJasminSingleOpInstruction((SingleOpInstruction) cond, varTable, reports); // direct boolean
+            default -> "nop ; this should have been an expression instruction\n\t";
         };
 
-        sb.append(inst).append(instruction.getLabel());
+        sb.append(inst).append('\n');
+
+        sb.append('\t').append("ifne ").append(instruction.getLabel());
 
         return sb.toString();
     }
@@ -671,25 +674,7 @@ public class Backend implements JasminBackend {
 
         sb.append('\t');
         switch (operation.getOpType()) {
-            case ADD -> {
-            }
-            case SUB -> {
-            }
-            case MUL -> {
-            }
-            case DIV -> {
-            }
-            case SHR -> {
-            }
-            case SHL -> {
-            }
-            case SHRR -> {
-            }
-            case XOR -> {
-            }
-            case AND -> {
-            }
-            case OR -> {
+            default -> {
             }
             case LTH -> sb.append("iflt");
             case GTH -> sb.append("ifgt");
@@ -697,23 +682,55 @@ public class Backend implements JasminBackend {
             case NEQ -> sb.append("ifne");
             case LTE -> sb.append("ifle");
             case GTE -> sb.append("ifge");
-            case ANDB -> {
-            }
-            case ORB -> {
-            }
-            case NOTB -> sb.append("ifle");
             case NOT -> sb.append("not");
+            case NOTB -> {
+                sb.append(this.buildJasminIntegerPushInstruction(1)).append('\n');
+                sb.append("\tixor\n");
+            }
         }
 
         return sb.toString();
     }
 
-    private String buildJasminBinaryOperatorInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+    private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, StringBuilder sb) {
+
+        if (
+                instruction.getOperation().getOpType() == OperationType.ADD &&
+                        instruction.getLeftOperand() instanceof Operand &&
+                        instruction.getRightOperand() instanceof LiteralElement literal &&
+                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                        Integer.parseInt(literal.getLiteral()) == 1
+        ) { // a + 1
+
+            var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
+
+            sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
+            sb.append("\tiload ").append(reg);
+            return true;
+        } else if (
+                instruction.getOperation().getOpType() == OperationType.ADD &&
+                        instruction.getRightOperand() instanceof Operand &&
+                        instruction.getLeftOperand() instanceof LiteralElement literal &&
+                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                        Integer.parseInt(literal.getLiteral()) == 1
+        ) { // 1 + a
+            var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
+
+            sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
+            sb.append("\tiload ").append(reg);
+            return true;
+        }
+
+        return false;
+    }
+
+    private String buildJasminBinaryArithmeticExpression(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
         var sb = new StringBuilder();
 
         var operation = instruction.getOperation();
 
+        var opType = operation.getOpType();
         var dType = switch (operation.getTypeInfo().getTypeOfElement()) {
             case INT32, BOOLEAN -> "i";
             case ARRAYREF, OBJECTREF, STRING, CLASS, THIS -> "a";
@@ -724,48 +741,102 @@ public class Backend implements JasminBackend {
         };
         if ("marker".equals(dType)) return "";
 
-        if (
-            operation.getOpType() == OperationType.ADD &&
-            instruction.getLeftOperand() instanceof Operand &&
-            instruction.getRightOperand() instanceof LiteralElement literal &&
-            literal.getType().getTypeOfElement() == ElementType.INT32 &&
-            literal.getLiteral().equals("1")
-        ) {
-            sb.append("\tiinc ").append(varTable.get(((Operand)instruction.getLeftOperand()).getName()).getVirtualReg()).append(" 1");
-       } else {
+        switch (opType) {
+
+            case ADD -> sb.append(dType).append("add");
+            case SUB -> sb.append(dType).append("sub");
+            case MUL -> sb.append(dType).append("mul");
+            case DIV -> sb.append(dType).append("div");
+            case SHR, SHL, SHRR -> {
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Unsupported arithmetic operation", new Exception("Unsupported arithmetic operation")));
+                return "";
+            }
+            case XOR -> sb.append(dType).append("xor");
+            case AND, ANDB -> sb.append(dType).append("and");
+            case OR, ORB -> sb.append(dType).append("or");
+            default -> {
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Invalid arithmetic operation", new Exception("Invalid arithmetic operation")));
+                return "";
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String buildJasminBinaryConditionalExpression(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        var sb = new StringBuilder();
+
+        var opType = instruction.getOperation().getOpType();
+
+        String bodyLabel = "__comparison_if_body__" + this.currentConditional, afterLabel = "__comparison_after__" + this.currentConditional++;
+        switch (opType) {
+            case LTH -> sb.append("if_icmplt ");
+            case GTH -> sb.append("if_icmpgt ");
+            case EQ -> sb.append("if_icmpeq ");
+            case NEQ -> sb.append("if_icmpne ");
+            case LTE -> sb.append("if_icmple ");
+            case GTE -> sb.append("if_icmpge ");
+            case NOTB -> sb.append("ifle"); // bruh
+            case NOT -> sb.append("not"); // bruh
+            default -> {
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "", new Exception("")));
+                return "";
+            }
+        }
+
+        sb.append(bodyLabel).append('\n');
+        sb.append('\t').append(this.buildJasminIntegerPushInstruction(0)).append('\n');
+        sb.append('\t').append("goto ").append(afterLabel).append('\n');
+        sb.append(bodyLabel).append(":\n");
+        sb.append('\t').append(this.buildJasminIntegerPushInstruction(1)).append('\n');
+        sb.append(afterLabel).append(':');
+
+        return sb.toString();
+    }
+
+    private String buildJasminBinaryOperatorInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+
+        var sb = new StringBuilder();
+
+        var operation = instruction.getOperation();
+
+        if (!this.optimizeJasminBinaryOpInstruction(instruction, varTable, sb)) {
             sb.append('\t');
             sb.append(this.buildJasminLoadElementInstruction(instruction.getLeftOperand(), varTable, reports));
             sb.append('\n');
-
 
             sb.append('\t');
             sb.append(this.buildJasminLoadElementInstruction(instruction.getRightOperand(), varTable, reports));
             sb.append('\n');
 
             sb.append('\t');
-            switch (operation.getOpType()) {
 
-                case ADD -> sb.append(dType).append("add");
-                case SUB -> sb.append(dType).append("sub");
-                case MUL -> sb.append(dType).append("mul");
-                case DIV -> sb.append(dType).append("div");
-                case SHR -> {
+            switch (operation.getOpType()) {
+                case ADD:
+                case SUB:
+                case MUL:
+                case DIV:
+                case SHR:
+                case SHL:
+                case SHRR:
+                case XOR:
+                case AND:
+                case ANDB:
+                case OR:
+                case ORB: {
+                    sb.append(this.buildJasminBinaryArithmeticExpression(instruction, varTable, reports));
                 }
-                case SHL -> {
+                case LTH:
+                case GTH:
+                case EQ:
+                case NEQ:
+                case LTE:
+                case GTE:
+                case NOTB:
+                case NOT: {
+                    sb.append(this.buildJasminBinaryConditionalExpression(instruction, varTable, reports));
                 }
-                case SHRR -> {
-                }
-                case XOR -> sb.append(dType).append("xor");
-                case AND, ANDB -> sb.append(dType).append("and");
-                case OR, ORB -> sb.append(dType).append("or");
-                case LTH -> sb.append("if_icmplt");
-                case GTH -> sb.append("if_icmpgt");
-                case EQ -> sb.append("if_icmpeq");
-                case NEQ -> sb.append("if_icmpne");
-                case LTE -> sb.append("if_icmple");
-                case GTE -> sb.append("if_icmpge");
-                case NOTB -> sb.append("ifle");
-                case NOT -> sb.append("not");
             }
         }
 

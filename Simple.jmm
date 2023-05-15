@@ -1,15 +1,19 @@
-import io;
+import ioPlus;
+class SimpleControlFlow {
 
-class Arithmetic_and {
+
 	public static void main(String[] args) {
-		boolean a;
+		int a;
+		int b;
 
-		a = true && false;
+		a = 2;
+		b = 3;
 
-		if(a) {
-			io.print(1);
-		} else {
-			io.print(0);
-		}
+        if(b < a){
+          ioPlus.printResult(a);
+        } else {
+           ioPlus.printResult(b);
+        }
+
 	}
 }
