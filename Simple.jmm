@@ -1,19 +1,14 @@
 import ioPlus;
 class SimpleControlFlow {
 
-
 	public static void main(String[] args) {
-		int a;
-		int b;
+        int c;
+        int d;
 
-		a = 2;
-		b = 3;
+		c = 32;
 
-        if(b < a){
-          ioPlus.printResult(a - 128);
-        } else {
-           ioPlus.printResult(b);
-        }
-
+		for (d = 0 - 128; d < 127; d++) {
+          ioPlus.printResult(c - d);
+		}
 	}
 }

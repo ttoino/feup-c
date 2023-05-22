@@ -305,7 +305,11 @@ public class Backend implements JasminBackend {
 
     private String buildJasminIntegerPushInstruction(int value) {
         var sb = new StringBuilder();
-        if (value < 6) {
+        if (value < -1) {
+            sb.append("ldc ").append(value);
+        } else if (value == -1) {
+            sb.append("iconst_m1");
+        } else if (value < 6) {
             sb.append("iconst_").append(value);
         } else if (value < 128) {
             sb.append("bipush ").append(value);
@@ -743,16 +747,16 @@ public class Backend implements JasminBackend {
             sb.append("\tiload ").append(reg);
             return true;
         } else if (
-                (instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) &&
+                instruction.getOperation().getOpType() == OperationType.ADD &&
                         instruction.getRightOperand() instanceof Operand &&
                         instruction.getLeftOperand() instanceof LiteralElement literal &&
                         literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                        (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
-        ) { // 1 (+|-) a
+                        Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
+                        Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
+        ) { // 1 + a
             var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
 
-            sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
+            sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
             return true;
         }
