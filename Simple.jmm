@@ -10,7 +10,7 @@ class SimpleControlFlow {
 		b = 3;
 
         if(b < a){
-          ioPlus.printResult(a);
+          ioPlus.printResult(a - 128);
         } else {
            ioPlus.printResult(b);
         }
