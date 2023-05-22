@@ -51,9 +51,6 @@ public class ConstantFoldingVisitor extends PostorderJmmVisitor<Void, Boolean> {
         var type = child.get("type");
         var op = node.get("op");
 
-        if (op.equals("-"))
-            return false;
-
         child.put("value", ConstantUtils.calculate(value, op, type));
         node.replace(child);
 

@@ -64,6 +64,7 @@ public final class ConstantUtils {
             return String.valueOf(switch (op) {
                 case "~" -> ~intVal;
                 case "+" -> intVal;
+                case "-" -> -intVal;
                 case "++" -> intVal + 1;
                 case "--" -> intVal - 1;
                 default -> throw new RuntimeException("Unknown operator: " + op);

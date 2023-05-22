@@ -617,7 +617,7 @@ public class OllirVisitor extends AJmmVisitor<Integer, String> {
 
         var type = OllirUtils.toOllirType(jmmNode.get("type"));
         var operator = jmmNode.get("op") + "." + type;
-        if (operator.matches("[-+]\\."))
+        if (operator.matches("[-+]\\..*"))
             operator = "0.i32 " + operator;
 
         // ++ and -- are special boys
