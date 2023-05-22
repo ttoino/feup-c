@@ -729,30 +729,30 @@ public class Backend implements JasminBackend {
     private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, StringBuilder sb) {
 
         if (
-                instruction.getOperation().getOpType() == OperationType.ADD &&
+                (instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) &&
                         instruction.getLeftOperand() instanceof Operand &&
                         instruction.getRightOperand() instanceof LiteralElement literal &&
                         literal.getType().getTypeOfElement() == ElementType.INT32 &&
                         Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                        Integer.parseInt(literal.getLiteral()) > Byte.MIN_VALUE
+                        Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
         ) { // a + 1
 
             var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
 
-            sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
+            sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : ' ').append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
             return true;
         } else if (
-                instruction.getOperation().getOpType() == OperationType.ADD &&
+                (instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) &&
                         instruction.getRightOperand() instanceof Operand &&
                         instruction.getLeftOperand() instanceof LiteralElement literal &&
                         literal.getType().getTypeOfElement() == ElementType.INT32 &&
                         Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                        Integer.parseInt(literal.getLiteral()) > Byte.MIN_VALUE
+                        Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
         ) { // 1 + a
             var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
 
-            sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
+            sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : ' ').append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
             return true;
         }
