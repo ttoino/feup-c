@@ -208,10 +208,7 @@ public class Backend implements JasminBackend {
 
             if (instruction.getInstType() == InstructionType.RETURN) hasReturn = true;
 
-            if (labelMap.containsKey(instruction))
-                sb.append(labelMap.get(instruction)).append(':').append('\n');
-
-            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
+            sb.append(this.buildJasminInstruction(instruction, varTable, labelMap, reports)).append('\n');
 
             if (instruction.getInstType() == InstructionType.CALL && ((CallInstruction) instruction).getReturnType().getTypeOfElement() != ElementType.VOID) {
                 sb.append("\tpop\n");
@@ -227,16 +224,21 @@ public class Backend implements JasminBackend {
             var instruction = new ReturnInstruction();
             instruction.setReturnType(new Type(ElementType.VOID));
 
-            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
+            sb.append(this.buildJasminInstruction(instruction, varTable, labelMap, reports)).append('\n');
         }
 
         return sb.toString();
     }
 
-    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, Map<Instruction, String> labelMap, List<Report> reports) {
 
-        return switch (instruction.getInstType()) {
-            case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
+        var sb = new StringBuilder();
+
+        if (labelMap.containsKey(instruction))
+            sb.append(labelMap.get(instruction)).append(':').append('\n');
+
+        var instructionCode = switch (instruction.getInstType()) {
+            case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, labelMap, reports);
             case CALL -> this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
             case GOTO -> this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
             case BRANCH -> this.buildJasminBranchInstruction((CondBranchInstruction) instruction, varTable, reports);
@@ -250,13 +252,16 @@ public class Backend implements JasminBackend {
             case NOPER -> this.buildJasminSingleOpInstruction((SingleOpInstruction) instruction, varTable, reports);
         };
 
+        sb.append(instructionCode);
+
+        return sb.toString();
     }
 
-    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
+    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, Map<Instruction, String> labelMap, List<Report> reports) {
 
         var sb = new StringBuilder();
 
-        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
+        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, labelMap, reports);
 
         Operand op = (Operand) instruction.getDest();
 
@@ -740,7 +745,6 @@ public class Backend implements JasminBackend {
                         (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
                         (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
         ) { // a (+|-) 1
-
             var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
 
             sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
