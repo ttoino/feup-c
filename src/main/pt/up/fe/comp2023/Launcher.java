@@ -69,6 +69,7 @@ public class Launcher {
         JasminOptimizer jasminOptimizer = new JasminOptimizer();
 
         JasminResult jasminResult = jasminOptimizer.optimize(unoptimizedJasminResult);
+        if (reports(config, jasminResult.getReports())) return;
 
         jasminResult.run();
     }
