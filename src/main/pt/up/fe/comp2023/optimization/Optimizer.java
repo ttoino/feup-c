@@ -53,6 +53,9 @@ public class Optimizer implements JmmOptimization {
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
+        if (!Boolean.parseBoolean(ollirResult.getConfig().get("optimize")))
+            return ollirResult;
+
         var code = ollirResult.getOllirCode();
         var newCode = new StringBuilder();
 

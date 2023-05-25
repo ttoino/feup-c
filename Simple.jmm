@@ -6,9 +6,14 @@ class SimpleControlFlow {
         int d;
 
 		c = 32;
+        d = 5;
 
-		for (d = 0 - 128; d < 127; d++) {
-          ioPlus.printResult(c - d);
+		if (c >= 0) {
+		    c = c - 1;
+		} else {
+		    c = c + 1;
 		}
+
+		ioPlus.printResult(c);
 	}
 }

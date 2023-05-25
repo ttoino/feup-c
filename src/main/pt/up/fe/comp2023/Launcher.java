@@ -7,6 +7,8 @@ import pt.up.fe.comp.jmm.parser.JmmParserResult;
 import pt.up.fe.comp.jmm.report.Report;
 import pt.up.fe.comp.jmm.report.ReportType;
 import pt.up.fe.comp2023.analysis.Analyzer;
+import pt.up.fe.comp2023.backend.Backend;
+import pt.up.fe.comp2023.backend.JasminOptimizer;
 import pt.up.fe.comp2023.optimization.Optimizer;
 import pt.up.fe.specs.util.SpecsIo;
 import pt.up.fe.specs.util.SpecsSystem;
@@ -60,9 +62,13 @@ public class Launcher {
         if (reports(config, ollirResult.getReports())) return;
 
         Backend backend = new Backend();
-        JasminResult jasminResult = backend.toJasmin(ollirResult);
+        JasminResult unoptimizedJasminResult = backend.toJasmin(ollirResult);
 
-        if (reports(config, jasminResult.getReports()) || code == null) return;
+        if (reports(config, unoptimizedJasminResult.getReports()) || code == null) return;
+
+        JasminOptimizer jasminOptimizer = new JasminOptimizer();
+
+        JasminResult jasminResult = jasminOptimizer.optimize(unoptimizedJasminResult);
 
         jasminResult.run();
     }

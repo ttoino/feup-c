@@ -1,4 +1,4 @@
-package pt.up.fe.comp2023;
+package pt.up.fe.comp2023.backend;
 
 import org.specs.comp.ollir.*;
 import pt.up.fe.comp.jmm.jasmin.JasminBackend;
@@ -10,6 +10,7 @@ import pt.up.fe.comp.jmm.report.Stage;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class Backend implements JasminBackend {
 
@@ -19,6 +20,7 @@ public class Backend implements JasminBackend {
     private int currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
     private int currentMethodStackSizeLimit = Backend.DEFAULT_METHOD_STACK_SIZE;
     private int currentConditional = 0;
+    private boolean conditionalOptimized = false;
 
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
@@ -125,8 +127,7 @@ public class Backend implements JasminBackend {
             }
         }
 
-        if (this.debugMode)
-            method.show();
+        if (this.debugMode) method.show();
 
         StringBuilder sb = new StringBuilder();
 
@@ -198,20 +199,14 @@ public class Backend implements JasminBackend {
         boolean hasReturn = false;
         var varTable = method.getVarTable();
 
-        Map<Instruction, String> labelMap = new HashMap<>();
-
-        for (var entry : method.getLabels().entrySet()) {
-            labelMap.put(entry.getValue(), entry.getKey());
-        }
-
-        System.out.println(method.getLabels());
-        System.out.println(labelMap);
-
         for (Instruction instruction : method.getInstructions()) {
 
             if (instruction.getInstType() == InstructionType.RETURN) hasReturn = true;
 
-            sb.append(this.buildJasminInstruction(instruction, varTable, labelMap, reports)).append('\n');
+            var labels = method.getLabels(instruction);
+            labels.forEach(label -> sb.append(label).append(":\n"));
+
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
 
             if (instruction.getInstType() == InstructionType.CALL && ((CallInstruction) instruction).getReturnType().getTypeOfElement() != ElementType.VOID) {
                 sb.append("\tpop\n");
@@ -227,21 +222,19 @@ public class Backend implements JasminBackend {
             var instruction = new ReturnInstruction();
             instruction.setReturnType(new Type(ElementType.VOID));
 
-            sb.append(this.buildJasminInstruction(instruction, varTable, labelMap, reports)).append('\n');
+            sb.append(this.buildJasminInstruction(instruction, varTable, reports)).append('\n');
         }
 
         return sb.toString();
     }
 
-    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, Map<Instruction, String> labelMap, List<Report> reports) {
+    private String buildJasminInstruction(Instruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
         var sb = new StringBuilder();
 
-        if (labelMap.containsKey(instruction))
-            sb.append(labelMap.get(instruction)).append(':').append('\n');
-
         var instructionCode = switch (instruction.getInstType()) {
-            case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, labelMap, reports);
+            case ASSIGN ->
+                    this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
             case CALL -> this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
             case GOTO -> this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
             case BRANCH -> this.buildJasminBranchInstruction((CondBranchInstruction) instruction, varTable, reports);
@@ -260,11 +253,11 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
-    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, Map<Instruction, String> labelMap, List<Report> reports) {
+    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable,  List<Report> reports) {
 
         var sb = new StringBuilder();
 
-        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, labelMap, reports);
+        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
 
         Operand op = (Operand) instruction.getDest();
 
@@ -554,8 +547,7 @@ public class Backend implements JasminBackend {
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Only int arrays are supported", new Exception("Only int arrays are supported")));
                         return "";
                     }
-                } else
-                    sb.append("new ").append(className);
+                } else sb.append("new ").append(className);
 
                 sb.append('\n');
                 sb.append("\tdup");
@@ -603,9 +595,15 @@ public class Backend implements JasminBackend {
             default -> "nop ; this should have been an expression instruction\n\t";
         };
 
-        sb.append(inst).append('\n');
+        sb.append(inst);
 
-        sb.append('\t').append("ifne ").append(instruction.getLabel());
+        if (!this.conditionalOptimized) {
+            sb.append("\n\t").append("ifne");
+        } else {
+            this.conditionalOptimized = false;
+        }
+
+        sb.append(' ').append(instruction.getLabel());
 
         return sb.toString();
     }
@@ -731,7 +729,7 @@ public class Backend implements JasminBackend {
             case NOT -> sb.append("not");
             case NOTB -> {
                 sb.append(this.buildJasminIntegerPushInstruction(1)).append('\n');
-                sb.append("\tixor\n");
+                sb.append("\tixor");
             }
         }
 
@@ -740,31 +738,31 @@ public class Backend implements JasminBackend {
 
     private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, StringBuilder sb) {
 
-        if (
-                (instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) &&
-                        instruction.getLeftOperand() instanceof Operand &&
-                        instruction.getRightOperand() instanceof LiteralElement literal &&
-                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                        (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
-        ) { // a (+|-) 1
+        if ((instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) && instruction.getLeftOperand() instanceof Operand && instruction.getRightOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // a (+|-) 1
             var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
 
             sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
             return true;
-        } else if (
-                instruction.getOperation().getOpType() == OperationType.ADD &&
-                        instruction.getRightOperand() instanceof Operand &&
-                        instruction.getLeftOperand() instanceof LiteralElement literal &&
-                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                        Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
-        ) { // 1 + a
+        } else if (instruction.getOperation().getOpType() == OperationType.ADD && instruction.getRightOperand() instanceof Operand && instruction.getLeftOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // 1 + a
             var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
 
             sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
+            return true;
+        } else if (
+                instruction.getOperation().getOpType() == OperationType.GTE &&
+                instruction.getLeftOperand() instanceof Operand op &&
+                op.getType().getTypeOfElement() == ElementType.INT32 &&
+                instruction.getRightOperand() instanceof LiteralElement literal &&
+                literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                Integer.parseInt(literal.getLiteral()) == 0 && false
+        ) { // a < 0
+            sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, new ArrayList<>())).append('\n');
+            sb.append("\tiflt");
+
+            this.conditionalOptimized = true;
+
             return true;
         }
 
@@ -831,15 +829,19 @@ public class Backend implements JasminBackend {
                 return "";
             }
         }
-
         sb.append(bodyLabel).append('\n');
-        sb.append('\t').append(this.buildJasminIntegerPushInstruction(0)).append('\n');
-        sb.append('\t').append("goto ").append(afterLabel).append('\n');
-        sb.append(bodyLabel).append(":\n");
-        sb.append('\t').append(this.buildJasminIntegerPushInstruction(1)).append('\n');
-        sb.append(afterLabel).append(':');
+
+        sb.append(this.buildJasminBooleanResult(bodyLabel, afterLabel));
 
         return sb.toString();
+    }
+
+    private String buildJasminBooleanResult(String bodyLabel, String afterLabel) {
+        return '\t' + this.buildJasminIntegerPushInstruction(0) + '\n' +
+                '\t' + "goto " + afterLabel + '\n' +
+                bodyLabel + ":\n" +
+                '\t' + this.buildJasminIntegerPushInstruction(1) + '\n' +
+                afterLabel + ':';
     }
 
     private String buildJasminBinaryOperatorInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
@@ -892,8 +894,7 @@ public class Backend implements JasminBackend {
 
     private String buildJasminSingleOpInstruction(SingleOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
-        return '\t' +
-                this.buildJasminLoadElementInstruction(instruction.getSingleOperand(), varTable, reports);
+        return '\t' + this.buildJasminLoadElementInstruction(instruction.getSingleOperand(), varTable, reports);
     }
 
     private String buildJasminTypeDescriptor(Type type, List<Report> reports) {
