@@ -204,6 +204,9 @@ public class Backend implements JasminBackend {
             labelMap.put(entry.getValue(), entry.getKey());
         }
 
+        System.out.println(method.getLabels());
+        System.out.println(labelMap);
+
         for (Instruction instruction : method.getInstructions()) {
 
             if (instruction.getInstType() == InstructionType.RETURN) hasReturn = true;
