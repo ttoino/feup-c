@@ -62,14 +62,16 @@ public class Launcher {
         if (reports(config, ollirResult.getReports())) return;
 
         Backend backend = new Backend();
-        JasminResult unoptimizedJasminResult = backend.toJasmin(ollirResult);
+        JasminResult jasminResult = backend.toJasmin(ollirResult);
 
-        if (reports(config, unoptimizedJasminResult.getReports()) || code == null) return;
+        if (reports(config, jasminResult.getReports()) || code == null) return;
 
-        JasminOptimizer jasminOptimizer = new JasminOptimizer();
+        if (config.get("optimize").equals("true")) {
+            JasminOptimizer jasminOptimizer = new JasminOptimizer();
 
-        JasminResult jasminResult = jasminOptimizer.optimize(unoptimizedJasminResult);
-        if (reports(config, jasminResult.getReports())) return;
+            jasminResult = jasminOptimizer.optimize(jasminResult);
+            if (reports(config, jasminResult.getReports())) return;
+        }
 
         jasminResult.run();
     }

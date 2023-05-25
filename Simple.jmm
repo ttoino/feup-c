@@ -8,11 +8,8 @@ class SimpleControlFlow {
 		c = 32;
         d = 5;
 
-		if (c >= 0) {
-		    c = c - 1;
-		} else {
-		}
+		d = c + 1;
 
-		ioPlus.printResult(c);
+		ioPlus.printResult(d);
 	}
 }

@@ -17,10 +17,13 @@ public class Backend implements JasminBackend {
     private static final int DEFAULT_METHOD_STACK_SIZE = 50;
     private String superClassName;
     private boolean debugMode;
+    private boolean optimize;
+
     private int currentMethodStackSize = Backend.DEFAULT_METHOD_STACK_SIZE;
     private int currentMethodStackSizeLimit = Backend.DEFAULT_METHOD_STACK_SIZE;
     private int currentConditional = 0;
     private boolean conditionalOptimized = false;
+    private int assignmentRegister = -1;
 
     @Override
     public JasminResult toJasmin(OllirResult ollirResult) {
@@ -29,6 +32,7 @@ public class Backend implements JasminBackend {
         var reports = new ArrayList<Report>();
 
         this.debugMode = Boolean.parseBoolean(config.get("debug"));
+        this.optimize = Boolean.parseBoolean(config.get("optimize"));
 
         var ollirClass = ollirResult.getOllirClass();
 
@@ -233,8 +237,7 @@ public class Backend implements JasminBackend {
         var sb = new StringBuilder();
 
         var instructionCode = switch (instruction.getInstType()) {
-            case ASSIGN ->
-                    this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
+            case ASSIGN -> this.buildJasminAssignInstruction((AssignInstruction) instruction, varTable, reports);
             case CALL -> this.buildJasminCallInstruction((CallInstruction) instruction, varTable, reports);
             case GOTO -> this.buildJasminGotoInstruction((GotoInstruction) instruction, varTable, reports);
             case BRANCH -> this.buildJasminBranchInstruction((CondBranchInstruction) instruction, varTable, reports);
@@ -253,16 +256,17 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
-    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable,  List<Report> reports) {
+    private String buildJasminAssignInstruction(AssignInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
 
         var sb = new StringBuilder();
-
-        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
 
         Operand op = (Operand) instruction.getDest();
 
         var descriptor = varTable.get(op.getName());
         int regNum = descriptor.getVirtualReg();
+
+        this.assignmentRegister = regNum;
+        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
 
         if (op instanceof ArrayOperand arr) {
             sb.append("\taload");
@@ -738,25 +742,54 @@ public class Backend implements JasminBackend {
 
     private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, StringBuilder sb) {
 
-        if ((instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) && instruction.getLeftOperand() instanceof Operand && instruction.getRightOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // a (+|-) 1
+        // if (!this.optimize) return false;
+
+        if (
+                (
+                    instruction.getOperation().getOpType() == OperationType.ADD ||
+                    instruction.getOperation().getOpType() == OperationType.SUB
+                ) &&
+                    instruction.getLeftOperand() instanceof Operand &&
+                    instruction.getRightOperand() instanceof LiteralElement literal &&
+                    literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                    (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
+                    (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
+        ) { // a (+|-) 1
             var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
+
+            if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "a++" kind of operation
 
             sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
+
+            this.assignmentRegister = -1;
+
             return true;
-        } else if (instruction.getOperation().getOpType() == OperationType.ADD && instruction.getRightOperand() instanceof Operand && instruction.getLeftOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // 1 + a
+        } else if (
+            instruction.getOperation().getOpType() == OperationType.ADD &&
+            instruction.getRightOperand() instanceof Operand &&
+            instruction.getLeftOperand() instanceof LiteralElement literal &&
+            literal.getType().getTypeOfElement() == ElementType.INT32 &&
+            Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
+            Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
+        ) { // 1 + a
             var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
+
+            if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "++a" kind of operation
 
             sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
             sb.append("\tiload ").append(reg);
+
+            this.assignmentRegister = -1;
+
             return true;
         } else if (
                 instruction.getOperation().getOpType() == OperationType.GTE &&
-                instruction.getLeftOperand() instanceof Operand op &&
-                op.getType().getTypeOfElement() == ElementType.INT32 &&
-                instruction.getRightOperand() instanceof LiteralElement literal &&
-                literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                Integer.parseInt(literal.getLiteral()) == 0 && false
+                        instruction.getLeftOperand() instanceof Operand op &&
+                        op.getType().getTypeOfElement() == ElementType.INT32 &&
+                        instruction.getRightOperand() instanceof LiteralElement literal &&
+                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                        Integer.parseInt(literal.getLiteral()) == 0 && false
         ) { // a < 0
             sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, new ArrayList<>())).append('\n');
             sb.append("\tiflt");
@@ -837,11 +870,7 @@ public class Backend implements JasminBackend {
     }
 
     private String buildJasminBooleanResult(String bodyLabel, String afterLabel) {
-        return '\t' + this.buildJasminIntegerPushInstruction(0) + '\n' +
-                '\t' + "goto " + afterLabel + '\n' +
-                bodyLabel + ":\n" +
-                '\t' + this.buildJasminIntegerPushInstruction(1) + '\n' +
-                afterLabel + ':';
+        return '\t' + this.buildJasminIntegerPushInstruction(0) + '\n' + '\t' + "goto " + afterLabel + '\n' + bodyLabel + ":\n" + '\t' + this.buildJasminIntegerPushInstruction(1) + '\n' + afterLabel + ':';
     }
 
     private String buildJasminBinaryOperatorInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
@@ -893,12 +922,10 @@ public class Backend implements JasminBackend {
     }
 
     private String buildJasminSingleOpInstruction(SingleOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
-
         return '\t' + this.buildJasminLoadElementInstruction(instruction.getSingleOperand(), varTable, reports);
     }
 
     private String buildJasminTypeDescriptor(Type type, List<Report> reports) {
-
         return switch (type.getTypeOfElement()) {
             case ARRAYREF -> this.buildJasminArrayTypeDescriptor((ArrayType) type, reports);
             case OBJECTREF, CLASS, THIS -> this.buildJasminClassaTypeDescriptor((ClassType) type, reports);
