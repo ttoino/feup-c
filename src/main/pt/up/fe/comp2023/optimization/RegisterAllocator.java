@@ -1,4 +1,4 @@
-package pt.up.fe.comp2023.optimization.o;
+package pt.up.fe.comp2023.optimization;
 
 import org.specs.comp.ollir.ClassUnit;
 import org.specs.comp.ollir.Method;
