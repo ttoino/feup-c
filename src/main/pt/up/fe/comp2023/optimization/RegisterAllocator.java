@@ -37,20 +37,33 @@ public class RegisterAllocator {
     }
 
     private List<Node> parseVariables(Method method) {
-        // Create a list to store the nodes
         List<Node> nodes = new ArrayList<>();
 
-        // Iterate over the instructions of the method
         for (Instruction instruction : method.getInstructions()) {
             Node node = new Node();
 
-            // Parsing defs and uses from instructiong
-            node.defs = new HashSet<>(instruction.getDefs());
-            node.uses = new HashSet<>(instruction.getUses());
+            node.defs = getDefs(instruction);
+            node.uses = getUses(instruction);
 
             nodes.add(node);
         }
 
+        computeInsOuts(nodes);
+
+        return nodes;
+    }
+
+    private Set<String> getUses(Instruction instruction) {
+        // TODO: get usesg
+        return new HashSet<>();
+    }
+
+    private Set<String> getDefs(Instruction instruction) {
+        //TODO: get defs
+        return new HashSet<>();
+    }
+
+    private void computeInsOuts(List<Node> nodes) {
         // Compute ins and outs iteratively
         boolean changed;
         do {
@@ -61,22 +74,19 @@ public class RegisterAllocator {
 
                 node.ins.clear();
                 node.ins.addAll(node.uses);
-                for (String outVar : node.outs) {
+
+                for (String outVar : node.outs)
                     if (!node.defs.contains(outVar))
                         node.ins.add(outVar);
-                }
 
-                for (Node neighbor : node.neighbors) {
+
+                for (Node neighbor : node.neighbors)
                     node.outs.addAll(neighbor.ins);
-                }
 
-                if (node.ins.size() != oldInsSize || node.outs.size() != oldOutsSize) {
+                if (node.ins.size() != oldInsSize || node.outs.size() != oldOutsSize)
                     changed = true;
-                }
             }
         } while (changed);
-
-        return nodes;
     }
 
     private Map<String, Node> buildInterferenceGraph(Method method, List<String> variables) {
