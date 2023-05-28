@@ -53,7 +53,7 @@ public class Optimizer implements JmmOptimization {
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
-        int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
+        int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().getOrDefault("registerAllocation", "-1"));
 
         if (maxRegsAllowed >= 0) {
             try {
