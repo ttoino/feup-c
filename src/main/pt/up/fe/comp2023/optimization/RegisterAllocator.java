@@ -38,22 +38,58 @@ public class RegisterAllocator {
         return ollirResult;
     }
 
+
     private List<Node> parseVariables(Method method) {
         List<Node> nodes = new ArrayList<>();
 
+        // Create empty sets for live-ins and live-outs of instructions
+        Map<Instruction, Set<String>> liveIns = new HashMap<>();
+        Map<Instruction, Set<String>> liveOuts = new HashMap<>();
+
+        // Initialize live-ins and live-outs with empty sets for all instructions
+        for (Instruction instruction : method.getInstructions()) {
+            liveIns.put(instruction, new HashSet<>());
+            liveOuts.put(instruction, new HashSet<>());
+        }
+
+        // Perform the live-in/live-out analysis iteratively until convergence
+        boolean changed;
+        do {
+            changed = false;
+            for (Instruction instruction : method.getInstructions()) {
+                Set<String> oldLiveIn = new HashSet<>(liveIns.get(instruction));
+                Set<String> oldLiveOut = new HashSet<>(liveOuts.get(instruction));
+
+                // Compute live-in
+                Set<String> liveIn = new HashSet<>(getUses(instruction));
+                liveIn.addAll(SetUtils.difference(liveOuts.get(instruction), getDefs(instruction)));
+
+                // Compute live-out
+                Set<String> liveOut = new HashSet<>();
+                for (var successor : instruction.getSuccessors())
+                    liveOut.addAll(liveIns.get((Instruction) successor));
+
+                liveIns.put(instruction, liveIn);
+                liveOuts.put(instruction, liveOut);
+
+                if (!oldLiveIn.equals(liveIn) || !oldLiveOut.equals(liveOut))
+                    changed = true;
+            }
+        } while (changed);
+
+        // Create nodes with defs, uses, ins, and outs based on the live-ins and live-outs
         for (Instruction instruction : method.getInstructions()) {
             Node node = new Node();
-
-            node.defs = getDefs(instruction);
-            node.uses = getUses(instruction);
-
+            node.defs.addAll(getDefs(instruction));
+            node.uses.addAll(getUses(instruction));
+            node.ins.addAll(liveIns.get(instruction));
+            node.outs.addAll(liveOuts.get(instruction));
             nodes.add(node);
         }
 
-        computeInsOuts(nodes);
-
         return nodes;
     }
+
 
     private Set<String> getDefs(Instruction instruction) {
         Set<String> defs = new HashSet<>();
@@ -140,13 +176,20 @@ public class RegisterAllocator {
                     graph.put(neighbor.variable, neighbor);
 
                 // Add edges between nodes that interfere with each other
-                graph.get(node.variable).neighbors.add(neighbor);
-                graph.get(neighbor.variable).neighbors.add(node);
+                Set<String> interferenceSet = new HashSet<>(node.defs);
+                interferenceSet.addAll(node.outs);
+
+                Set<String> neighborInterferenceSet = new HashSet<>(neighbor.defs);
+                neighborInterferenceSet.addAll(neighbor.outs);
+
+                graph.get(node.variable).neighbors.addAll(neighborInterferenceSet);
+                graph.get(neighbor.variable).neighbors.addAll(interferenceSet);
             }
         }
 
         return graph;
     }
+
 
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
         Map<String, Integer> colorMap = new HashMap<>();
@@ -190,6 +233,5 @@ public class RegisterAllocator {
 
         for (var key : colorMap.keySet())
             varTable.get(key).setVirtualReg(colorMap.get(key));
-
     }
 }
