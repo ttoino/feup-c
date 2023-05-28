@@ -70,20 +70,14 @@ public class RegisterAllocator {
         Instruction rhs;
 
         if (instruction instanceof AssignInstruction assign) {
-            rhs = assign.getRhs();
-            uses.addAll(getUses(rhs));
-
+            uses.addAll(getUses(assign.getRhs()));
         } else if (instruction instanceof  CallInstruction call) {
-            ArrayList<Element> operandList = call.getListOfOperands();
-
-            for (Element el: operandList)
-                if (el instanceof Operand op)
+            for (Element operand: call.getListOfOperands())
+                if (operand instanceof Operand op)
                     uses.add(op.getName());
-
         } else if (instruction instanceof  ReturnInstruction ret) {
             if (ret.getOperand() instanceof Operand op)
                 uses.add(op.getName());
-
         } else if (instruction instanceof UnaryOpInstruction unop) {
             if (unop.getOperand() instanceof Operand op)
                 uses.add(op.getName());
@@ -93,18 +87,12 @@ public class RegisterAllocator {
                 uses.add(l_op.getName());
             if (binop.getRightOperand() instanceof Operand r_op)
                 uses.add(r_op.getName());
-
         } else if (instruction instanceof OpCondInstruction opcond) {
-            List<Element> operandList = opcond.getOperands();
-
-            for (Element el: operandList)
+            for (Element el: opcond.getOperands())
                 if (el instanceof Operand op)
                     uses.add(op.getName());
-
         } else if (instruction instanceof  PutFieldInstruction put) {
-            List<Element> operandList = put.getOperands();
-
-            for (Element el: operandList)
+            for (Element el: put.getOperands())
                 if (el instanceof Operand op)
                     uses.add(op.getName());
         }
@@ -160,36 +148,26 @@ public class RegisterAllocator {
         return graph;
     }
 
-
-
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
         Map<String, Integer> colorMap = new HashMap<>();
-        int numColors = graph.size(); // Assuming initially there are enough registers for all variables
+        int numColors = graph.size();
 
-        // Create a stack to store the nodes with less than numColors neighbors
         Deque<Node> stack = new ArrayDeque<>();
 
-        // Find nodes with less than numColors neighbors and add them to the stack
-        for (Node node : graph.values()) {
-            if (node.neighbors.size() < numColors) {
+        for (Node node : graph.values())
+            if (node.neighbors.size() < numColors)
                 stack.push(node);
-            }
-        }
 
-        // Repeat until there are no more nodes in the graph or no node with less than numColors neighbors
         while (!stack.isEmpty()) {
             Node node = stack.pop();
 
-            // Find the lowest available color (register) for the node
-            boolean[] usedColors = new boolean[numColors]; // Track used colors by neighbors
+            boolean[] usedColors = new boolean[numColors];
             for (Node neighbor : node.neighbors) {
                 Integer neighborColor = colorMap.get(neighbor.variable);
-                if (neighborColor != null) {
+                if (neighborColor != null)
                     usedColors[neighborColor] = true;
-                }
             }
 
-            // Assign the lowest unused color to the current node
             for (int color = 0; color < numColors; color++) {
                 if (!usedColors[color]) {
                     colorMap.put(node.variable, color);
@@ -197,21 +175,15 @@ public class RegisterAllocator {
                 }
             }
 
-            // Update the neighbors of the current node, as removal of the node may reduce their edges
             for (Node neighbor : node.neighbors) {
                 neighbor.neighbors.remove(node);
-                if (neighbor.neighbors.size() < numColors) {
+                if (neighbor.neighbors.size() < numColors)
                     stack.push(neighbor);
-                }
             }
         }
 
         return colorMap;
     }
-
-
-
-
 
     private void replaceWithRegisters(Method method, Map<String, Integer> colorMap) {
         var varTable = method.getVarTable();
