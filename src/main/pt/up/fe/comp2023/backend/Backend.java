@@ -144,7 +144,11 @@ public class Backend implements JasminBackend {
 
             var varTable = method.getVarTable();
 
-            var numLocals = varTable.size();
+            // we need as many locals as there are different registers used in the method
+            var localRegs = new HashSet<Integer>();
+            varTable.values().forEach(descriptor -> localRegs.add(descriptor.getVirtualReg()));
+
+            var numLocals = localRegs.size();
 
             // if the "this" reference is not used in the method, it will not be loaded into the varTable
             if (!method.isStaticMethod() && !method.getVarTable().containsKey("this")) numLocals++;
@@ -727,20 +731,11 @@ public class Backend implements JasminBackend {
 
         // if (!this.optimize) return false;
 
-        if (
-                (
-                    instruction.getOperation().getOpType() == OperationType.ADD ||
-                    instruction.getOperation().getOpType() == OperationType.SUB
-                ) &&
-                    instruction.getLeftOperand() instanceof Operand op &&
-                    instruction.getRightOperand() instanceof LiteralElement literal &&
-                    literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                    (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-                    (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
-        ) { // a (+|-) 1
+        if ((instruction.getOperation().getOpType() == OperationType.ADD || instruction.getOperation().getOpType() == OperationType.SUB) && instruction.getLeftOperand() instanceof Operand op && instruction.getRightOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // a (+|-) 1
             var reg = varTable.get(op.getName()).getVirtualReg();
 
-            if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "a++" kind of operation
+            if (reg != this.assignmentRegister)
+                return false; // we can only use iinc if we are performing a "a++" kind of operation
 
             sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
             sb.append(this.buildJasminLoadOperandInstruction(op, varTable, reports));
@@ -748,17 +743,11 @@ public class Backend implements JasminBackend {
             this.assignmentRegister = -1;
 
             return true;
-        } else if (
-            instruction.getOperation().getOpType() == OperationType.ADD &&
-            instruction.getRightOperand() instanceof Operand op &&
-            instruction.getLeftOperand() instanceof LiteralElement literal &&
-            literal.getType().getTypeOfElement() == ElementType.INT32 &&
-            Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
-            Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
-        ) { // 1 + a
+        } else if (instruction.getOperation().getOpType() == OperationType.ADD && instruction.getRightOperand() instanceof Operand op && instruction.getLeftOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE && Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE) { // 1 + a
             var reg = varTable.get(op.getName()).getVirtualReg();
 
-            if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "++a" kind of operation
+            if (reg != this.assignmentRegister)
+                return false; // we can only use iinc if we are performing a "++a" kind of operation
 
             sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
             sb.append(this.buildJasminLoadOperandInstruction(op, varTable, reports));
@@ -766,28 +755,14 @@ public class Backend implements JasminBackend {
             this.assignmentRegister = -1;
 
             return true;
-        } else if (
-                instruction.getOperation().getOpType() == OperationType.GTE &&
-                        instruction.getLeftOperand() instanceof Operand op &&
-                        op.getType().getTypeOfElement() == ElementType.INT32 &&
-                        instruction.getRightOperand() instanceof LiteralElement literal &&
-                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        Integer.parseInt(literal.getLiteral()) == 0
-        ) { // a >= 0
+        } else if (instruction.getOperation().getOpType() == OperationType.GTE && instruction.getLeftOperand() instanceof Operand op && op.getType().getTypeOfElement() == ElementType.INT32 && instruction.getRightOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && Integer.parseInt(literal.getLiteral()) == 0) { // a >= 0
             sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, new ArrayList<>())).append('\n');
             sb.append("\tifge");
 
             this.conditionalOptimized = true;
 
             return true;
-        } else if (
-                instruction.getOperation().getOpType() == OperationType.LTH &&
-                        instruction.getLeftOperand() instanceof Operand op &&
-                        op.getType().getTypeOfElement() == ElementType.INT32 &&
-                        instruction.getRightOperand() instanceof LiteralElement literal &&
-                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        Integer.parseInt(literal.getLiteral()) == 0
-        ) { // a < 0
+        } else if (instruction.getOperation().getOpType() == OperationType.LTH && instruction.getLeftOperand() instanceof Operand op && op.getType().getTypeOfElement() == ElementType.INT32 && instruction.getRightOperand() instanceof LiteralElement literal && literal.getType().getTypeOfElement() == ElementType.INT32 && Integer.parseInt(literal.getLiteral()) == 0) { // a < 0
 
             String bodyLabel = "__comparison_if_body_iflt__" + this.currentConditional, afterLabel = "__comparison_after_iflt__" + this.currentConditional++;
 
@@ -894,8 +869,10 @@ public class Backend implements JasminBackend {
             sb.append('\t');
 
             switch (operation.getOpType()) {
-                case ADD, SUB, MUL, DIV, SHR, SHL, SHRR, XOR, AND, ANDB, OR, ORB -> sb.append(this.buildJasminBinaryArithmeticExpression(instruction, varTable, reports));
-                case LTH, GTH, EQ, NEQ, LTE, GTE, NOTB, NOT -> sb.append(this.buildJasminBinaryConditionalExpression(instruction, varTable, reports));
+                case ADD, SUB, MUL, DIV, SHR, SHL, SHRR, XOR, AND, ANDB, OR, ORB ->
+                        sb.append(this.buildJasminBinaryArithmeticExpression(instruction, varTable, reports));
+                case LTH, GTH, EQ, NEQ, LTE, GTE, NOTB, NOT ->
+                        sb.append(this.buildJasminBinaryConditionalExpression(instruction, varTable, reports));
             }
 
             this.changeCurrentMethodStackSizeLimit(-1);

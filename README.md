@@ -66,13 +66,13 @@ We consider our project deserves a grade of 19 out of 20.
 
 ### Syntax and semantics
 
-Support for more Java syntax, including for loops, switch statements, and all java operators.
+- Support for more Java syntax, including for loops, switch statements, and all java operators.
 
 ### Ollir
 
-Ollir generation for all additional supported syntax, excluding the modulo operator, as it is not supported by ollir.
+- Ollir generation for all additional supported syntax, excluding the modulo operator, as it is not supported by ollir.
 
 ### Optimizations
 
-Some dead code removal, like removal of code after returns, breaks and continues, and in unvisited branches in if statements.
-
+- Some dead code removal, like removal of code after returns, breaks and continues, and in unvisited branches in if statements.
+- Removal of redundant JVM instructions (*stores* after *loads* of the same register, removal of redundant *goto*s).
