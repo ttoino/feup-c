@@ -55,22 +55,12 @@ public class RegisterAllocator {
     }
 
     private Set<String> getDefs(Instruction instruction) {
-        Set<String> uses = new HashSet<>();
-
-
-        return uses;
-    }
-
-
-    private Set<String> getDefs(Instruction instruction) {
         Set<String> defs = new HashSet<>();
 
         if(instruction.getInstType() == InstructionType.ASSIGN) {
             AssignInstruction assignInstruction = (AssignInstruction) instruction;
             String destVarName = assignInstruction.getDest().toString();
         }
-
-        //ASSIGN, CALL, RETURN, , UNARYOP, BINARYOP
 
         return defs;
     }
@@ -151,19 +141,32 @@ public class RegisterAllocator {
         } while (changed);
     }
 
-    private Map<String, Node> buildInterferenceGraph(Method method, List<String> variables) {
-        // TODO: Perform liveness analysis and build the interference graph
-        // TODO: create a Node for each variable, and add edges between nodes that interfere with each other
-        return new HashMap<>();
+    private Map<String, Node> buildInterferenceGraph(List<Node> nodes) {
+        Map<String, Node> graph = new HashMap<>();
+
+        for (Node node : nodes) {
+            for (Node neighbor : node.neighbors) {
+                if (!graph.containsKey(node.variable))
+                    graph.put(node.variable, node);
+
+                if (!graph.containsKey(neighbor.variable))
+                    graph.put(neighbor.variable, neighbor);
+
+                // Add edges between nodes that interfere with each other
+                graph.get(node.variable).neighbors.add(neighbor);
+                graph.get(neighbor.variable).neighbors.add(node);
+            }
+        }
+
+        return graph;
     }
 
-    /*
+
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
         // TODO: Color the graph
         // Output should be a map from variables to register numbers (colors) ???
         return new HashMap<>();
     }
-    */
 
 
 
