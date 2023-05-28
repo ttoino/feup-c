@@ -28,6 +28,10 @@ public class RegisterAllocator {
             Map<String, Node> graph = buildInterferenceGraph(nodes);
             Map<String, Integer> colorMap = colorGraph(graph);
 
+            int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
+            if (new TreeSet<>(colorMap.values()).size() > maxRegsAllowed)
+                throw new RuntimeException("More regs than supposed");
+
             replaceWithRegisters(method, colorMap);
         }
 
@@ -167,6 +171,7 @@ public class RegisterAllocator {
         //TODO: CHANGE
         for (Map.Entry<String, Node> entry : graph.entrySet())
             colorMap.put(entry.getKey(), color++);
+
 
         return colorMap;
     }
