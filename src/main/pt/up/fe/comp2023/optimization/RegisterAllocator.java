@@ -22,14 +22,11 @@ public class RegisterAllocator {
 
     public OllirResult optimizeRegisters(OllirResult ollirResult) {
         ClassUnit ollirClass = ollirResult.getOllirClass();
-        ollirClass.buildCFGs();
 
-        // Foreach method in the class, perform liveness analysis,
-        // TODO: build the interference graph, and color the graph.
         for (Method method : ollirClass.getMethods()) {
             List<Node> nodes = parseVariables(method);
-            buildInterferenceGraph(nodes);
-            Map<String, Integer> colorMap = colorGraph(nodes);
+            Map<String, Node> graph = buildInterferenceGraph(nodes);
+            Map<String, Integer> colorMap = colorGraph(graph);
 
             replaceWithRegisters(method, colorMap);
         }
@@ -163,14 +160,23 @@ public class RegisterAllocator {
 
 
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
-        // TODO: Color the graph
-        // Output should be a map from variables to register numbers (colors) ???
-        return new HashMap<>();
+        Map<String, Integer> colorMap = new HashMap<>();
+        int color = 0;
+
+        // This is a very naive way of graph coloring and it might not work for all cases.
+        //TODO: CHANGE
+        for (Map.Entry<String, Node> entry : graph.entrySet())
+            colorMap.put(entry.getKey(), color++);
+
+        return colorMap;
     }
 
 
 
     private void replaceWithRegisters(Method method, Map<String, Integer> colorMap) {
-        // TODO: Implement this method to replace the variables in the method with the allocated registers
+        var varTable = method.getVarTable();
+
+        for (var key : colorMap.keySet())
+            varTable.get(key).setVirtualReg(colorMap.get(key));
     }
 }
