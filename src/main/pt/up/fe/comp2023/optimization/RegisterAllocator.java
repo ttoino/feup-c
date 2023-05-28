@@ -58,10 +58,8 @@ public class RegisterAllocator {
     private Set<String> getDefs(Instruction instruction) {
         Set<String> defs = new HashSet<>();
 
-        if(instruction.getInstType() == InstructionType.ASSIGN) {
-            AssignInstruction assignInstruction = (AssignInstruction) instruction;
-            String destVarName = assignInstruction.getDest().toString();
-        }
+        if (instruction instanceof AssignInstruction assign)
+            defs.add(assign.getDest().toString());
 
         return defs;
     }
@@ -172,9 +170,11 @@ public class RegisterAllocator {
         Deque<Node> stack = new ArrayDeque<>();
 
         // Find nodes with less than numColors neighbors and add them to the stack
-        for (Node node : graph.values())
-            if (node.neighbors.size() < numColors)
+        for (Node node : graph.values()) {
+            if (node.neighbors.size() < numColors) {
                 stack.push(node);
+            }
+        }
 
         // Repeat until there are no more nodes in the graph or no node with less than numColors neighbors
         while (!stack.isEmpty()) {
@@ -184,8 +184,9 @@ public class RegisterAllocator {
             boolean[] usedColors = new boolean[numColors]; // Track used colors by neighbors
             for (Node neighbor : node.neighbors) {
                 Integer neighborColor = colorMap.get(neighbor.variable);
-                if (neighborColor != null)
+                if (neighborColor != null) {
                     usedColors[neighborColor] = true;
+                }
             }
 
             // Assign the lowest unused color to the current node
@@ -199,8 +200,9 @@ public class RegisterAllocator {
             // Update the neighbors of the current node, as removal of the node may reduce their edges
             for (Node neighbor : node.neighbors) {
                 neighbor.neighbors.remove(node);
-                if (neighbor.neighbors.size() < numColors)
+                if (neighbor.neighbors.size() < numColors) {
                     stack.push(neighbor);
+                }
             }
         }
 
@@ -210,10 +212,12 @@ public class RegisterAllocator {
 
 
 
+
     private void replaceWithRegisters(Method method, Map<String, Integer> colorMap) {
         var varTable = method.getVarTable();
 
         for (var key : colorMap.keySet())
             varTable.get(key).setVirtualReg(colorMap.get(key));
+
     }
 }
