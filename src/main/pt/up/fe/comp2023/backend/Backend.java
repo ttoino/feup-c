@@ -634,11 +634,7 @@ public class Backend implements JasminBackend {
         var firstOperand = (Operand) instruction.getFirstOperand();
         var secondOperand = (Operand) instruction.getSecondOperand();
 
-        var firstDescriptor = varTable.get(firstOperand.getName());
-        var firstRegNum = firstDescriptor.getVirtualReg();
-
-        sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
-        this.changeCurrentMethodStackSizeLimit(1);
+        sb.append('\t').append(this.buildJasminLoadOperandInstruction(firstOperand, varTable, reports)).append('\n');
 
         sb.append('\t');
         sb.append(this.buildJasminLoadElementInstruction(instruction.getThirdOperand(), varTable, reports));
@@ -662,16 +658,10 @@ public class Backend implements JasminBackend {
     private String buildJasminGetfieldOperation(GetFieldInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports) {
         var sb = new StringBuilder();
 
-        instruction.getFieldType();
-
         var firstOperand = (Operand) instruction.getFirstOperand();
         var secondOperand = (Operand) instruction.getSecondOperand();
 
-        var firstDescriptor = varTable.get(firstOperand.getName());
-        var firstRegNum = firstDescriptor.getVirtualReg();
-
-        this.changeCurrentMethodStackSizeLimit(1);
-        sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
+        sb.append('\t').append(this.buildJasminLoadOperandInstruction(firstOperand, varTable, reports)).append('\n');
 
         sb.append("\tgetfield ");
 

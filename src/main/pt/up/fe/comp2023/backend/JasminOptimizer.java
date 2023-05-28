@@ -10,9 +10,8 @@ import java.util.regex.Pattern;
 
 public class JasminOptimizer {
 
-    private final Pattern gotoPattern = Pattern.compile("\\s*goto\\s+(\\w+)(\\n\\w+:\\n\\1:)");
+    private final Pattern gotoPattern = Pattern.compile("\\s*goto\\s+(\\w+)(\\n(\\w+:\\n)+\\1:)");
     private final Pattern loadStorePattern = Pattern.compile("\\s*([ia])load[\\s_](\\d+)\\n\\s*\\1store[\\s_]\\2\\n");
-
 
     public JasminResult optimize(JasminResult jasminResult) {
 
@@ -23,12 +22,7 @@ public class JasminOptimizer {
         var reports = new ArrayList<Report>();
         reports.add(new Report(ReportType.DEBUG, Stage.GENERATION, -1, -1, "Optimized Jasmin:\n" + jasminCode));
 
-        return new JasminResult(
-                jasminResult.getClassName(),
-                jasminCode,
-                reports,
-                jasminResult.getConfig()
-        );
+        return new JasminResult(jasminResult.getClassName(), jasminCode, reports, jasminResult.getConfig());
     }
 
     private String performOptimization(String jasminCode) {
