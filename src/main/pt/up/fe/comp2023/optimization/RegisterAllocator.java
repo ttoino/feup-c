@@ -10,8 +10,6 @@ import java.util.stream.Collectors;
 
 public class RegisterAllocator {
     private static class Node {
-        String variable;
-        Set<String> neighbors = new HashSet<>();
         Set<String> defs = new HashSet<>();
         Set<String> uses = new HashSet<>();
         Set<String> ins = new HashSet<>();
@@ -29,7 +27,8 @@ public class RegisterAllocator {
             var colorMap = colorGraph(graph);
 
             int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
-            if (maxRegsAllowed > 0 && new TreeSet<>(colorMap.values()).size() > maxRegsAllowed)
+            var colors = new TreeSet<>(colorMap.values());
+            if (maxRegsAllowed > 0 && colors.size() > maxRegsAllowed)
                 throw new RuntimeException("More regs than supposed");
 
             replaceWithRegisters(method, colorMap);
@@ -95,15 +94,14 @@ public class RegisterAllocator {
         Set<String> defs = new HashSet<>();
 
         if (instruction instanceof AssignInstruction assign)
-            defs.add(assign.getDest().toString());
+            if (assign.getDest() instanceof Operand op)
+                defs.add(op.getName());
 
         return defs;
     }
 
     private Set<String> getUses(Instruction instruction) {
         Set<String> uses = new HashSet<>();
-
-        Instruction rhs;
 
         if (instruction instanceof AssignInstruction assign) {
             uses.addAll(getUses(assign.getRhs()));
@@ -131,6 +129,9 @@ public class RegisterAllocator {
             for (Element el: put.getOperands())
                 if (el instanceof Operand op)
                     uses.add(op.getName());
+        } else if (instruction instanceof SingleOpInstruction sop) {
+            if (sop.getSingleOperand() instanceof Operand op)
+                uses.add(op.getName());
         }
 
         return uses;
@@ -143,11 +144,15 @@ public class RegisterAllocator {
         Map<String, Set<String>> graph = new HashMap<>();
 
         for (Node node : nodes) {
+            for (var def : node.defs) {
+                graph.computeIfAbsent(def, s -> new HashSet<>());
+            }
+
             var pairs = SetUtils.generateCombinations(node.ins);
             pairs.addAll(SetUtils.generateCombinations(SetUtils.union(node.outs, node.defs)));
 
             for (var pair : pairs) {
-                var neighbors = graph.computeIfAbsent(pair.get(0), (s) -> new HashSet<>());
+                var neighbors = graph.get(pair.get(0));
                 neighbors.add(pair.get(1));
             }
         }
