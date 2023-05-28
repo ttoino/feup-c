@@ -1,13 +1,12 @@
 package pt.up.fe.comp2023.optimization;
 
-import org.specs.comp.ollir.AssignInstruction;
-import org.specs.comp.ollir.ClassUnit;
-import org.specs.comp.ollir.Instruction;
-import org.specs.comp.ollir.Method;
+import org.specs.comp.ollir.*;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.specs.util.graphs.Graph;
 
+import javax.swing.tree.TreeNode;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class RegisterAllocator {
     private static class Node {
@@ -18,6 +17,8 @@ public class RegisterAllocator {
         Set<String> ins = new HashSet<>();
         Set<String> outs = new HashSet<>();
     }
+
+    // If the InstructionType is an instance of ASSIGN, we know that we have dest, so we can use the getDest command to get the dest var
 
     public OllirResult optimizeRegisters(OllirResult ollirResult) {
         ClassUnit ollirClass = ollirResult.getOllirClass();
@@ -53,15 +54,60 @@ public class RegisterAllocator {
         return nodes;
     }
 
+    private Set<String> getDefs(Instruction instruction) {
+        Set<String> uses = new HashSet<>();
+
+
+        return uses;
+    }
+
+
     private Set<String> getUses(Instruction instruction) {
-        // TODO: get usesg
-        return new HashSet<>();
+        Set<String> defs = new HashSet<>();
+
+        if(instruction.getInstType() == InstructionType.ASSIGN) {
+            AssignInstruction assignInstruction = (AssignInstruction) instruction;
+            String destVarName = assignInstruction.getDest().toString();
+        }
+
+        //ASSIGN, CALL, RETURN, , UNARYOP, BINARYOP
+
+        return defs;
     }
 
     private Set<String> getDefs(Instruction instruction) {
-        //TODO: get defs
-        return new HashSet<>();
+        Set<String> defs = new HashSet<>();
+
+        switch (instruction.getInstType()) {
+            case ASSIGN:
+                Operand destVar = ((AssignInstruction)instruction).getDest();
+                defs.add(destVar.getName());
+                break;
+
+            case CALL:
+                // TODO: Handle CallInstruction
+                break;
+
+            case RETURN:
+                // TODO: Handle ReturnInstruction
+                break;
+
+            case UNARYOPER:
+                // TODO: Handle UnaryOperInstruction
+                break;
+
+            case BINARYOPER:
+                // TODO: Handle BinaryOperInstruction
+                break;
+
+            default:
+                // Handle other types of instructions if needed
+        }
+
+        return defs;
     }
+
+
 
     private void computeInsOuts(List<Node> nodes) {
         // Compute ins and outs iteratively
@@ -95,11 +141,15 @@ public class RegisterAllocator {
         return new HashMap<>();
     }
 
+    /*
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
         // TODO: Color the graph
         // Output should be a map from variables to register numbers (colors) ???
         return new HashMap<>();
     }
+    */
+
+
 
     private void replaceWithRegisters(Method method, Map<String, Integer> colorMap) {
         // TODO: Implement this method to replace the variables in the method with the allocated registers
