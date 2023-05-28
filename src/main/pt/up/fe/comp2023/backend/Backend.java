@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Backend implements JasminBackend {
 
-    private static final int DEFAULT_METHOD_STACK_SIZE = 50; // TODO: this is a hack, this value should be 0, it is making an unrelated test fail
+    private static final int DEFAULT_METHOD_STACK_SIZE = 0; // TODO: this is a hack, this value should be 0, it is making an unrelated test fail
     private String superClassName;
     private boolean debugMode;
     private boolean optimize;
@@ -265,19 +265,18 @@ public class Backend implements JasminBackend {
         int regNum = descriptor.getVirtualReg();
 
         this.assignmentRegister = regNum;
-        var rhs = this.buildJasminInstruction(instruction.getRhs(), varTable, reports);
 
         if (op instanceof ArrayOperand arr) {
-            this.changeCurrentMethodStackSizeLimit(1);
-            sb.append("\taload");
 
-            sb.append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+            sb.append("\taload").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+            this.changeCurrentMethodStackSizeLimit(1);
 
             for (var elem : arr.getIndexOperands()) {
                 sb.append('\t').append(this.buildJasminLoadElementInstruction(elem, varTable, reports)).append("\n");
             }
 
-            sb.append(rhs).append('\n');
+            // we need to load the rhs here because of the stack limits
+            sb.append(this.buildJasminInstruction(instruction.getRhs(), varTable, reports)).append('\n');
 
             sb.append('\t');
             switch (arr.getType().getTypeOfElement()) {
@@ -287,9 +286,9 @@ public class Backend implements JasminBackend {
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Cannot load void variable", new Exception("Cannot load void variable")));
             }
             sb.append("astore");
-            this.changeCurrentMethodStackSizeLimit(-3);
+            this.changeCurrentMethodStackSizeLimit(-1);
         } else {
-            sb.append(rhs).append('\n');
+            sb.append(this.buildJasminInstruction(instruction.getRhs(), varTable, reports)).append('\n');
 
             sb.append('\t');
             switch (instruction.getTypeOfAssign().getTypeOfElement()) {
@@ -359,17 +358,14 @@ public class Backend implements JasminBackend {
         // TODO: can be better (?)
         if (op instanceof ArrayOperand arr) {
 
-            sb.append("aload");
-
-            sb.append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
+            sb.append("aload").append(argRegNum < 4 ? '_' : ' ').append(argRegNum).append('\n');
+            this.changeCurrentMethodStackSizeLimit(1);
 
             for (var elem : arr.getIndexOperands()) {
                 sb.append('\t').append(this.buildJasminLoadElementInstruction(elem, varTable, reports)).append("\n");
             }
 
             sb.append('\t');
-
-            this.changeCurrentMethodStackSizeLimit(1);
 
             switch (arr.getType().getTypeOfElement()) {
                 case INT32, BOOLEAN -> sb.append('i');
@@ -379,7 +375,7 @@ public class Backend implements JasminBackend {
             }
             sb.append("aload");
 
-            this.changeCurrentMethodStackSizeLimit(-1);
+            this.changeCurrentMethodStackSizeLimit(1);
         } else {
             switch (op.getType().getTypeOfElement()) {
                 case INT32, BOOLEAN -> sb.append('i');
@@ -414,29 +410,21 @@ public class Backend implements JasminBackend {
         var sb = new StringBuilder();
 
         // taken from https://github.com/PedroJSilva2001/feup-comp-jmm-compiler/blob/master/src/pt/up/fe/comp/jmm/jasmin/JasminBackender.java#L447
-        AtomicInteger numToPop = new AtomicInteger();
+        AtomicInteger stackSizeVariation = new AtomicInteger(-1);
 
         switch (instruction.getInvocationType()) {
             case invokevirtual -> {// method call on object reference
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
-                var descriptor = varTable.get(calledObject.getName());
-
-                int regNum = descriptor.getVirtualReg();
-
                 // load the object reference onto the stack
-                sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
-                numToPop.set(1);
+                sb.append('\t').append(this.buildJasminLoadOperandInstruction(calledObject, varTable, reports)).append('\n');
+                stackSizeVariation.getAndIncrement();
 
                 // load args
                 instruction.getListOfOperands().forEach((arg) -> {
-                    sb.append('\t');
-
-                    sb.append(this.buildJasminLoadElementInstruction(arg, varTable, reports));
-                    numToPop.getAndIncrement();
-
-                    sb.append('\n');
+                    sb.append('\t').append(this.buildJasminLoadElementInstruction(arg, varTable, reports)).append('\n');
+                    stackSizeVariation.incrementAndGet();
                 });
 
                 sb.append('\t').append("invokevirtual ").append(((ClassType) calledObject.getType()).getName()).append('/').append(methodName.getLiteral().replaceAll("\"", "")).append('(');
@@ -449,7 +437,7 @@ public class Backend implements JasminBackend {
                 sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
                 if (instruction.getReturnType().getTypeOfElement() == ElementType.VOID) {
-                    numToPop.getAndDecrement();
+                    stackSizeVariation.getAndDecrement();
                 }
             }
             case invokeinterface -> {
@@ -458,21 +446,13 @@ public class Backend implements JasminBackend {
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
-                var descriptor = varTable.get(calledObject.getName());
-
-                int regNum = descriptor.getVirtualReg();
-
-                numToPop.set(1);
-                sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
-                this.changeCurrentMethodStackSizeLimit(1);
+                sb.append('\t').append(this.buildJasminLoadOperandInstruction(calledObject, varTable, reports)).append('\n');
+                stackSizeVariation.getAndIncrement();
 
                 // load args
                 instruction.getListOfOperands().forEach((arg) -> {
-                    sb.append('\t');
-
-                    sb.append(this.buildJasminLoadElementInstruction(arg, varTable, reports));
-
-                    sb.append('\n');
+                    sb.append('\t').append(this.buildJasminLoadElementInstruction(arg, varTable, reports)).append('\n');
+                    stackSizeVariation.incrementAndGet();
                 });
 
                 sb.append('\t').append("invokespecial ");
@@ -493,23 +473,17 @@ public class Backend implements JasminBackend {
                 sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
                 if (instruction.getReturnType().getTypeOfElement() == ElementType.VOID) {
-                    numToPop.getAndDecrement();
+                    stackSizeVariation.getAndDecrement();
                 }
             }
             case invokestatic -> {
                 Operand calledObject = (Operand) instruction.getFirstArg();
                 LiteralElement methodName = (LiteralElement) instruction.getSecondArg();
 
-                numToPop.set(0);
-
                 // load args
                 instruction.getListOfOperands().forEach((arg) -> {
-                    sb.append('\t');
-
-                    sb.append(this.buildJasminLoadElementInstruction(arg, varTable, reports));
-                    numToPop.getAndIncrement();
-
-                    sb.append('\n');
+                    sb.append('\t').append(this.buildJasminLoadElementInstruction(arg, varTable, reports)).append('\n');
+                    stackSizeVariation.getAndIncrement();
                 });
 
                 var className = calledObject.getName();
@@ -527,13 +501,11 @@ public class Backend implements JasminBackend {
                 sb.append(')').append(this.buildJasminTypeDescriptor(instruction.getReturnType(), reports));
 
                 if (instruction.getReturnType().getTypeOfElement() == ElementType.VOID) {
-                    numToPop.getAndDecrement();
+                    stackSizeVariation.getAndDecrement();
                 }
             }
             case NEW -> {
                 Operand objectClass = (Operand) instruction.getFirstArg();
-
-                numToPop.set(-1);
 
                 var className = objectClass.getName();
 
@@ -542,8 +514,6 @@ public class Backend implements JasminBackend {
 
                     // there should only be one other operand, the array size. Load it and assume this is ok
                     var sizeOperand = instruction.getListOfOperands().get(0);
-                    numToPop.getAndIncrement();
-
                     sb.append(this.buildJasminLoadElementInstruction(sizeOperand, varTable, reports)).append('\n');
 
                     sb.append("\tnewarray").append(' ');
@@ -555,32 +525,34 @@ public class Backend implements JasminBackend {
                         reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Only int arrays are supported", new Exception("Only int arrays are supported")));
                         return "";
                     }
-                } else sb.append("new ").append(className);
+                } else {
+                    sb.append("new ").append(className);
+                    this.changeCurrentMethodStackSizeLimit(1);
+                }
 
                 sb.append('\n');
                 sb.append("\tdup");
 
+                this.changeCurrentMethodStackSizeLimit(1);
+
             }
             case arraylength -> {
-
                 Operand op = (Operand) instruction.getFirstArg();
-                var descriptor = varTable.get(op.getName());
-
-                int regNum = descriptor.getVirtualReg();
 
                 // load the object reference onto the stack
-                sb.append('\t').append('a').append("load").append(regNum < 4 ? '_' : ' ').append(regNum).append('\n');
+                sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, reports)).append('\n');
+
                 sb.append("\tarraylength");
 
             }
             case ldc -> {
                 var literal = (LiteralElement) instruction.getFirstArg();
 
-                sb.append('\t').append("ldc ").append(literal.getLiteral());
+                sb.append('\t').append(this.buildJasminLoadLiteralInstruction(literal, varTable, reports));
             }
         }
 
-        this.changeCurrentMethodStackSizeLimit(-numToPop.get());
+        this.changeCurrentMethodStackSizeLimit(-stackSizeVariation.get());
 
         return sb.toString();
     }
@@ -646,6 +618,7 @@ public class Backend implements JasminBackend {
                 break;
         }
         sb.append("return");
+        this.changeCurrentMethodStackSizeLimit(-1);
 
         return sb.toString();
     }
@@ -661,6 +634,7 @@ public class Backend implements JasminBackend {
         var firstRegNum = firstDescriptor.getVirtualReg();
 
         sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
+        this.changeCurrentMethodStackSizeLimit(1);
 
         sb.append('\t');
         sb.append(this.buildJasminLoadElementInstruction(instruction.getThirdOperand(), varTable, reports));
@@ -676,7 +650,7 @@ public class Backend implements JasminBackend {
         sb.append(secondOperand.getName());
         sb.append(' ').append(this.buildJasminTypeDescriptor(secondOperand.getType(), reports));
 
-        this.changeCurrentMethodStackSizeLimit(-2);
+        this.changeCurrentMethodStackSizeLimit(-2); // this is correct if we do not invoke this with array operands
 
         return sb.toString();
     }
@@ -692,6 +666,7 @@ public class Backend implements JasminBackend {
         var firstDescriptor = varTable.get(firstOperand.getName());
         var firstRegNum = firstDescriptor.getVirtualReg();
 
+        this.changeCurrentMethodStackSizeLimit(1);
         sb.append("\taload").append(firstRegNum < 4 ? '_' : ' ').append(firstRegNum).append('\n');
 
         sb.append("\tgetfield ");
@@ -703,6 +678,8 @@ public class Backend implements JasminBackend {
 
         sb.append(secondOperand.getName());
         sb.append(' ').append(this.buildJasminTypeDescriptor(instruction.getFieldType(), reports));
+
+        this.changeCurrentMethodStackSizeLimit(1);
 
         return sb.toString();
     }
@@ -746,7 +723,7 @@ public class Backend implements JasminBackend {
         return sb.toString();
     }
 
-    private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, StringBuilder sb) {
+    private boolean optimizeJasminBinaryOpInstruction(BinaryOpInstruction instruction, HashMap<String, Descriptor> varTable, List<Report> reports, StringBuilder sb) {
 
         // if (!this.optimize) return false;
 
@@ -755,36 +732,36 @@ public class Backend implements JasminBackend {
                     instruction.getOperation().getOpType() == OperationType.ADD ||
                     instruction.getOperation().getOpType() == OperationType.SUB
                 ) &&
-                    instruction.getLeftOperand() instanceof Operand &&
+                    instruction.getLeftOperand() instanceof Operand op &&
                     instruction.getRightOperand() instanceof LiteralElement literal &&
                     literal.getType().getTypeOfElement() == ElementType.INT32 &&
                     (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
                     (instruction.getOperation().getOpType() == OperationType.SUB ? -1 : 1) * Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
         ) { // a (+|-) 1
-            var reg = varTable.get(((Operand) instruction.getLeftOperand()).getName()).getVirtualReg();
+            var reg = varTable.get(op.getName()).getVirtualReg();
 
             if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "a++" kind of operation
 
             sb.append("\tiinc ").append(reg).append(instruction.getOperation().getOpType() == OperationType.SUB ? " -" : " ").append(literal.getLiteral()).append('\n');
-            sb.append("\tiload ").append(reg);
+            sb.append(this.buildJasminLoadOperandInstruction(op, varTable, reports));
 
             this.assignmentRegister = -1;
 
             return true;
         } else if (
             instruction.getOperation().getOpType() == OperationType.ADD &&
-            instruction.getRightOperand() instanceof Operand &&
+            instruction.getRightOperand() instanceof Operand op &&
             instruction.getLeftOperand() instanceof LiteralElement literal &&
             literal.getType().getTypeOfElement() == ElementType.INT32 &&
             Integer.parseInt(literal.getLiteral()) <= Byte.MAX_VALUE &&
             Integer.parseInt(literal.getLiteral()) >= Byte.MIN_VALUE
         ) { // 1 + a
-            var reg = varTable.get(((Operand) instruction.getRightOperand()).getName()).getVirtualReg();
+            var reg = varTable.get(op.getName()).getVirtualReg();
 
             if (reg != this.assignmentRegister) return false; // we can only use iinc if we are performing a "++a" kind of operation
 
             sb.append("\tiinc ").append(reg).append(' ').append(literal.getLiteral()).append('\n');
-            sb.append("\tiload ").append(reg);
+            sb.append(this.buildJasminLoadOperandInstruction(op, varTable, reports));
 
             this.assignmentRegister = -1;
 
@@ -820,7 +797,6 @@ public class Backend implements JasminBackend {
             sb.append(this.buildJasminBooleanResult(bodyLabel, afterLabel));
 
             return true;
-
         }
 
         return false;
@@ -861,6 +837,7 @@ public class Backend implements JasminBackend {
                 return "";
             }
         }
+        this.changeCurrentMethodStackSizeLimit(-1);
 
         return sb.toString();
     }
@@ -886,6 +863,7 @@ public class Backend implements JasminBackend {
                 return "";
             }
         }
+        this.changeCurrentMethodStackSizeLimit(-2);
         sb.append(bodyLabel).append('\n');
 
         sb.append(this.buildJasminBooleanResult(bodyLabel, afterLabel));
@@ -894,6 +872,7 @@ public class Backend implements JasminBackend {
     }
 
     private String buildJasminBooleanResult(String bodyLabel, String afterLabel) {
+        this.changeCurrentMethodStackSizeLimit(1);
         return '\t' + this.buildJasminIntegerPushInstruction(0) + '\n' + '\t' + "goto " + afterLabel + '\n' + bodyLabel + ":\n" + '\t' + this.buildJasminIntegerPushInstruction(1) + '\n' + afterLabel + ':';
     }
 
@@ -903,7 +882,7 @@ public class Backend implements JasminBackend {
 
         var operation = instruction.getOperation();
 
-        if (!this.optimizeJasminBinaryOpInstruction(instruction, varTable, sb)) {
+        if (!this.optimizeJasminBinaryOpInstruction(instruction, varTable, reports, sb)) {
             sb.append('\t');
             sb.append(this.buildJasminLoadElementInstruction(instruction.getLeftOperand(), varTable, reports));
             sb.append('\n');
