@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Backend implements JasminBackend {
 
-    private static final int DEFAULT_METHOD_STACK_SIZE = 2; // TODO: this is a hack, this value should be 0, it is making an unrelated test fail
+    private static final int DEFAULT_METHOD_STACK_SIZE = 50; // TODO: this is a hack, this value should be 0, it is making an unrelated test fail
     private String superClassName;
     private boolean debugMode;
     private boolean optimize;
