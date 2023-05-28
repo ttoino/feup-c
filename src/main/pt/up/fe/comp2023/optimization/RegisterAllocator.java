@@ -163,18 +163,50 @@ public class RegisterAllocator {
     }
 
 
+
     private Map<String, Integer> colorGraph(Map<String, Node> graph) {
         Map<String, Integer> colorMap = new HashMap<>();
-        int color = 0;
+        int numColors = graph.size(); // Assuming initially there are enough registers for all variables
 
-        // This is a very naive way of graph coloring and it might not work for all cases.
-        //TODO: CHANGE
-        for (Map.Entry<String, Node> entry : graph.entrySet())
-            colorMap.put(entry.getKey(), color++);
+        // Create a stack to store the nodes with less than numColors neighbors
+        Deque<Node> stack = new ArrayDeque<>();
 
+        // Find nodes with less than numColors neighbors and add them to the stack
+        for (Node node : graph.values())
+            if (node.neighbors.size() < numColors)
+                stack.push(node);
+
+        // Repeat until there are no more nodes in the graph or no node with less than numColors neighbors
+        while (!stack.isEmpty()) {
+            Node node = stack.pop();
+
+            // Find the lowest available color (register) for the node
+            boolean[] usedColors = new boolean[numColors]; // Track used colors by neighbors
+            for (Node neighbor : node.neighbors) {
+                Integer neighborColor = colorMap.get(neighbor.variable);
+                if (neighborColor != null)
+                    usedColors[neighborColor] = true;
+            }
+
+            // Assign the lowest unused color to the current node
+            for (int color = 0; color < numColors; color++) {
+                if (!usedColors[color]) {
+                    colorMap.put(node.variable, color);
+                    break;
+                }
+            }
+
+            // Update the neighbors of the current node, as removal of the node may reduce their edges
+            for (Node neighbor : node.neighbors) {
+                neighbor.neighbors.remove(node);
+                if (neighbor.neighbors.size() < numColors)
+                    stack.push(neighbor);
+            }
+        }
 
         return colorMap;
     }
+
 
 
 
