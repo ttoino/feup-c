@@ -1,15 +1,15 @@
 import ioPlus;
-class SimpleControlFlow {
-
+class InstSelection_if_lt {
 	public static void main(String[] args) {
-        int c;
-        int d;
+	    int a;
+        a = -1;
 
-		c = 32;
-        d = 5;
+		if(a < 0) {
+			a = 1;
+		} else {
+			a = 2;
+		}
 
-		d = c + 1;
-
-		ioPlus.printResult(d);
+		ioPlus.printResult(a);
 	}
 }

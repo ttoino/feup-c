@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class Backend implements JasminBackend {
 
-    private static final int DEFAULT_METHOD_STACK_SIZE = 2; // TODO: this is a hack, this value should be 0
+    private static final int DEFAULT_METHOD_STACK_SIZE = 2; // TODO: this is a hack, this value should be 0, it is making an unrelated test fail
     private String superClassName;
     private boolean debugMode;
     private boolean optimize;
@@ -795,14 +795,32 @@ public class Backend implements JasminBackend {
                         op.getType().getTypeOfElement() == ElementType.INT32 &&
                         instruction.getRightOperand() instanceof LiteralElement literal &&
                         literal.getType().getTypeOfElement() == ElementType.INT32 &&
-                        Integer.parseInt(literal.getLiteral()) == 0 && false
-        ) { // a < 0
+                        Integer.parseInt(literal.getLiteral()) == 0
+        ) { // a >= 0
             sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, new ArrayList<>())).append('\n');
-            sb.append("\tiflt");
+            sb.append("\tifge");
 
             this.conditionalOptimized = true;
 
             return true;
+        } else if (
+                instruction.getOperation().getOpType() == OperationType.LTH &&
+                        instruction.getLeftOperand() instanceof Operand op &&
+                        op.getType().getTypeOfElement() == ElementType.INT32 &&
+                        instruction.getRightOperand() instanceof LiteralElement literal &&
+                        literal.getType().getTypeOfElement() == ElementType.INT32 &&
+                        Integer.parseInt(literal.getLiteral()) == 0
+        ) { // a < 0
+
+            String bodyLabel = "__comparison_if_body_iflt__" + this.currentConditional, afterLabel = "__comparison_after_iflt__" + this.currentConditional++;
+
+            sb.append('\t').append(this.buildJasminLoadOperandInstruction(op, varTable, new ArrayList<>())).append('\n');
+            sb.append("\tiflt ").append(bodyLabel).append('\n');
+
+            sb.append(this.buildJasminBooleanResult(bodyLabel, afterLabel));
+
+            return true;
+
         }
 
         return false;
@@ -864,7 +882,7 @@ public class Backend implements JasminBackend {
             case NOTB -> sb.append("ifle"); // bruh
             case NOT -> sb.append("not"); // bruh
             default -> {
-                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "", new Exception("")));
+                reports.add(Report.newWarn(Stage.GENERATION, -1, -1, "Unknown conditional operator: " + opType.name(), new Exception("Unknown conditional operator: " + opType.name())));
                 return "";
             }
         }
@@ -897,30 +915,8 @@ public class Backend implements JasminBackend {
             sb.append('\t');
 
             switch (operation.getOpType()) {
-                case ADD:
-                case SUB:
-                case MUL:
-                case DIV:
-                case SHR:
-                case SHL:
-                case SHRR:
-                case XOR:
-                case AND:
-                case ANDB:
-                case OR:
-                case ORB: {
-                    sb.append(this.buildJasminBinaryArithmeticExpression(instruction, varTable, reports));
-                }
-                case LTH:
-                case GTH:
-                case EQ:
-                case NEQ:
-                case LTE:
-                case GTE:
-                case NOTB:
-                case NOT: {
-                    sb.append(this.buildJasminBinaryConditionalExpression(instruction, varTable, reports));
-                }
+                case ADD, SUB, MUL, DIV, SHR, SHL, SHRR, XOR, AND, ANDB, OR, ORB -> sb.append(this.buildJasminBinaryArithmeticExpression(instruction, varTable, reports));
+                case LTH, GTH, EQ, NEQ, LTE, GTE, NOTB, NOT -> sb.append(this.buildJasminBinaryConditionalExpression(instruction, varTable, reports));
             }
 
             this.changeCurrentMethodStackSizeLimit(-1);
@@ -936,7 +932,7 @@ public class Backend implements JasminBackend {
     private String buildJasminTypeDescriptor(Type type, List<Report> reports) {
         return switch (type.getTypeOfElement()) {
             case ARRAYREF -> this.buildJasminArrayTypeDescriptor((ArrayType) type, reports);
-            case OBJECTREF, CLASS, THIS -> this.buildJasminClassaTypeDescriptor((ClassType) type, reports);
+            case OBJECTREF, CLASS, THIS -> this.buildJasminClassTypeDescriptor((ClassType) type, reports);
             case INT32 -> "I";
             case BOOLEAN -> "Z";
             case STRING -> "Ljava/lang/String;";
@@ -948,7 +944,7 @@ public class Backend implements JasminBackend {
         return "[".repeat(Math.max(0, type.getNumDimensions())) + this.buildJasminTypeDescriptor(type.getElementType(), reports);
     }
 
-    private String buildJasminClassaTypeDescriptor(ClassType type, List<Report> reports) {
+    private String buildJasminClassTypeDescriptor(ClassType type, List<Report> reports) {
         return "L" + type.getName() + ";";
     }
 

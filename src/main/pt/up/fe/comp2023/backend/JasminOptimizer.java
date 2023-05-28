@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public class JasminOptimizer {
 
     private final Pattern gotoPattern = Pattern.compile("\\s*goto\\s+(\\w+)(\\n\\w+:\\n\\1:)");
-    private final Pattern loadStorePattern = Pattern.compile("\\s*([ia])store[\\s_](\\d+)\\n\\s*\\1load[\\s_]\\2\\n|\\s*([ia])load[\\s_](\\d+)\\n\\s*\\3store[\\s_]\\4\\n");
+    private final Pattern loadStorePattern = Pattern.compile("\\s*([ia])load[\\s_](\\d+)\\n\\s*\\1store[\\s_]\\2\\n");
 
 
     public JasminResult optimize(JasminResult jasminResult) {
