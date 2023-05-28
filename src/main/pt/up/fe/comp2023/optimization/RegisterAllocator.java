@@ -16,8 +16,6 @@ public class RegisterAllocator {
         Set<String> outs = new HashSet<>();
     }
 
-    // If the InstructionType is an instance of ASSIGN, we know that we have dest, so we can use the getDest command to get the dest var
-
     public OllirResult optimizeRegisters(OllirResult ollirResult) {
         ClassUnit ollirClass = ollirResult.getOllirClass();
 

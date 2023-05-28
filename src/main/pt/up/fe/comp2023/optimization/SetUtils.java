@@ -45,7 +45,7 @@ public class SetUtils {
                 combination.add(elements.get(i));
                 combination.add(elements.get(j));
 
-                if (combination.size() == 2)
+                if (combination.get(0) != combination.get(1))
                     combinations.add(combination);
             }
         }
