@@ -104,6 +104,9 @@ public class RegisterAllocator {
         if (instruction instanceof AssignInstruction assign) {
             uses.addAll(getUses(assign.getRhs()));
         } else if (instruction instanceof  CallInstruction call) {
+            if (call.getInvocationType() != CallType.invokestatic && call.getFirstArg() instanceof Operand op)
+                uses.add(op.getName());
+
             for (Element operand: call.getListOfOperands())
                 if (operand instanceof Operand op)
                     uses.add(op.getName());
@@ -124,9 +127,11 @@ public class RegisterAllocator {
                 if (el instanceof Operand op)
                     uses.add(op.getName());
         } else if (instruction instanceof  PutFieldInstruction put) {
-            for (Element el: put.getOperands())
-                if (el instanceof Operand op)
-                    uses.add(op.getName());
+            if (put.getThirdOperand() instanceof Operand op)
+                uses.add(op.getName());
+
+            if (put.getFirstOperand() instanceof Operand op)
+                uses.add(op.getName());
         } else if (instruction instanceof SingleOpInstruction sop) {
             if (sop.getSingleOperand() instanceof Operand op)
                 uses.add(op.getName());
@@ -142,7 +147,7 @@ public class RegisterAllocator {
         Map<String, Set<String>> graph = new HashMap<>();
 
         for (Node node : nodes) {
-            for (var def : node.defs) {
+            for (var def : SetUtils.union(node.defs, node.uses)) {
                 graph.computeIfAbsent(def, s -> new HashSet<>());
             }
 
