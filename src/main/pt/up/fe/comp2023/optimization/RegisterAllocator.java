@@ -62,7 +62,7 @@ public class RegisterAllocator {
     }
 
 
-    private Set<String> getUses(Instruction instruction) {
+    private Set<String> getDefs(Instruction instruction) {
         Set<String> defs = new HashSet<>();
 
         if(instruction.getInstType() == InstructionType.ASSIGN) {
@@ -75,36 +75,52 @@ public class RegisterAllocator {
         return defs;
     }
 
-    private Set<String> getDefs(Instruction instruction) {
-        Set<String> defs = new HashSet<>();
+    private Set<String> getUses(Instruction instruction) {
+        Set<String> uses = new HashSet<>();
 
-        switch (instruction.getInstType()) {
-            case ASSIGN:
-                Operand destVar = ((AssignInstruction)instruction).getDest();
-                defs.add(destVar.getName());
-                break;
+        Instruction rhs;
 
-            case CALL:
-                // TODO: Handle CallInstruction
-                break;
+        if (instruction instanceof AssignInstruction assign) {
+            rhs = assign.getRhs();
+            uses.addAll(getUses(rhs));
 
-            case RETURN:
-                // TODO: Handle ReturnInstruction
-                break;
+        } else if (instruction instanceof  CallInstruction call) {
+            ArrayList<Element> operandList = call.getListOfOperands();
 
-            case UNARYOPER:
-                // TODO: Handle UnaryOperInstruction
-                break;
+            for (Element el: operandList)
+                if (el instanceof Operand op)
+                    uses.add(op.getName());
 
-            case BINARYOPER:
-                // TODO: Handle BinaryOperInstruction
-                break;
+        } else if (instruction instanceof  ReturnInstruction ret) {
+            if (ret.getOperand() instanceof Operand op)
+                uses.add(op.getName());
 
-            default:
-                // Handle other types of instructions if needed
+        } else if (instruction instanceof UnaryOpInstruction unop) {
+            if (unop.getOperand() instanceof Operand op)
+                uses.add(op.getName());
+
+        } else if (instruction instanceof BinaryOpInstruction binop) {
+            if (binop.getLeftOperand() instanceof Operand l_op)
+                uses.add(l_op.getName());
+            if (binop.getRightOperand() instanceof Operand r_op)
+                uses.add(r_op.getName());
+
+        } else if (instruction instanceof OpCondInstruction opcond) {
+            List<Element> operandList = opcond.getOperands();
+
+            for (Element el: operandList)
+                if (el instanceof Operand op)
+                    uses.add(op.getName());
+
+        } else if (instruction instanceof  PutFieldInstruction put) {
+            List<Element> operandList = put.getOperands();
+
+            for (Element el: operandList)
+                if (el instanceof Operand op)
+                    uses.add(op.getName());
         }
 
-        return defs;
+        return uses;
     }
 
 
