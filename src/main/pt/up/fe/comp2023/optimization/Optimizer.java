@@ -53,6 +53,16 @@ public class Optimizer implements JmmOptimization {
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
+        int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
+
+        if (maxRegsAllowed >= 0) {
+            try {
+                ollirResult = new RegisterAllocator().optimizeRegisters(ollirResult);
+            } catch (Exception e) {
+                ollirResult.getReports().add(new Report(ReportType.ERROR, Stage.OPTIMIZATION, -1, -1, "Register limit exceeded"));
+            }
+        }
+
         if (!Boolean.parseBoolean(ollirResult.getConfig().get("optimize")))
             return ollirResult;
 
