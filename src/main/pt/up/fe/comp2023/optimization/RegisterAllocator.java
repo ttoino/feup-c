@@ -1,6 +1,7 @@
 package pt.up.fe.comp2023.optimization;
 
 import org.specs.comp.ollir.ClassUnit;
+import org.specs.comp.ollir.Instruction;
 import org.specs.comp.ollir.Method;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 
@@ -16,9 +17,11 @@ public class RegisterAllocator {
         ClassUnit ollirClass = ollirResult.getOllirClass();
         ollirClass.buildCFGs();
 
+
         // Foreach method in the class, perform liveness analysis,
         // TODO: build the interference graph, and color the graph.
         for (Method method : ollirClass.getMethods()) {
+            method.
             List<String> variables = parseVariables(method);
             Map<String, Node> graph = buildInterferenceGraph(method, variables);
             Map<String, Integer> colorMap = colorGraph(graph);
@@ -30,8 +33,15 @@ public class RegisterAllocator {
     }
 
     private List<String> parseVariables(Method method) {
-        // TODO: parse the method and return a list of variables
-        return new ArrayList<>();
+        // Create a list to store the variable names
+        List<String> variables = new ArrayList<>();
+
+        // Iterate over the instructions of the method
+        for (Instruction instruction : method.getInstructions()) {
+            // TODO: Extract variables from instruction and add to the list
+        }
+
+        return variables;
     }
 
     private Map<String, Node> buildInterferenceGraph(Method method, List<String> variables) {
