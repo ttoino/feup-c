@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 public class RegisterAllocator {
     private static class Node {
         String variable;
-        Set<Node> neighbors = new HashSet<>();
+        Set<String> neighbors = new HashSet<>();
         Set<String> defs = new HashSet<>();
         Set<String> uses = new HashSet<>();
         Set<String> ins = new HashSet<>();
@@ -24,9 +24,9 @@ public class RegisterAllocator {
         ClassUnit ollirClass = ollirResult.getOllirClass();
 
         for (Method method : ollirClass.getMethods()) {
-            List<Node> nodes = parseVariables(method);
-            Map<String, Node> graph = buildInterferenceGraph(nodes);
-            Map<String, Integer> colorMap = colorGraph(graph);
+            var nodes = parseVariables(method);
+            var graph = buildInterferenceGraph(nodes);
+            var colorMap = colorGraph(graph);
 
             int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
             if (maxRegsAllowed > 0 && new TreeSet<>(colorMap.values()).size() > maxRegsAllowed)
@@ -138,52 +138,17 @@ public class RegisterAllocator {
 
 
 
-    private void computeInsOuts(List<Node> nodes) {
-        // Compute ins and outs iteratively
-        boolean changed;
-        do {
-            changed = false;
-            for (Node node : nodes) {
-                int oldInsSize = node.ins.size();
-                int oldOutsSize = node.outs.size();
 
-                node.ins.clear();
-                node.ins.addAll(node.uses);
-
-                for (String outVar : node.outs)
-                    if (!node.defs.contains(outVar))
-                        node.ins.add(outVar);
-
-
-                for (Node neighbor : node.neighbors)
-                    node.outs.addAll(neighbor.ins);
-
-                if (node.ins.size() != oldInsSize || node.outs.size() != oldOutsSize)
-                    changed = true;
-            }
-        } while (changed);
-    }
-
-    private Map<String, Node> buildInterferenceGraph(List<Node> nodes) {
-        Map<String, Node> graph = new HashMap<>();
+    private Map<String, Set<String>> buildInterferenceGraph(List<Node> nodes) {
+        Map<String, Set<String>> graph = new HashMap<>();
 
         for (Node node : nodes) {
-            for (Node neighbor : node.neighbors) {
-                if (!graph.containsKey(node.variable))
-                    graph.put(node.variable, node);
+            var pairs = SetUtils.generateCombinations(node.ins);
+            pairs.addAll(SetUtils.generateCombinations(SetUtils.union(node.outs, node.defs)));
 
-                if (!graph.containsKey(neighbor.variable))
-                    graph.put(neighbor.variable, neighbor);
-
-                // Add edges between nodes that interfere with each other
-                Set<String> interferenceSet = new HashSet<>(node.defs);
-                interferenceSet.addAll(node.outs);
-
-                Set<String> neighborInterferenceSet = new HashSet<>(neighbor.defs);
-                neighborInterferenceSet.addAll(neighbor.outs);
-
-                graph.get(node.variable).neighbors.addAll(neighborInterferenceSet);
-                graph.get(neighbor.variable).neighbors.addAll(interferenceSet);
+            for (var pair : pairs) {
+                var neighbors = graph.computeIfAbsent(pair.get(0), (s) -> new HashSet<>());
+                neighbors.add(pair.get(1));
             }
         }
 
@@ -191,36 +156,37 @@ public class RegisterAllocator {
     }
 
 
-    private Map<String, Integer> colorGraph(Map<String, Node> graph) {
+    private Map<String, Integer> colorGraph(Map<String, Set<String>> graph) {
         Map<String, Integer> colorMap = new HashMap<>();
         int numColors = graph.size();
 
-        Deque<Node> stack = new ArrayDeque<>();
+        Deque<String> stack = new ArrayDeque<>();
 
-        for (Node node : graph.values())
-            if (node.neighbors.size() < numColors)
-                stack.push(node);
+        for (var node : graph.entrySet())
+            if (node.getValue().size() < numColors)
+                stack.push(node.getKey());
 
         while (!stack.isEmpty()) {
-            Node node = stack.pop();
+            String node = stack.pop();
+            var neighbors = graph.get(node);
 
             boolean[] usedColors = new boolean[numColors];
-            for (Node neighbor : node.neighbors) {
-                Integer neighborColor = colorMap.get(neighbor.variable);
+            for (String neighbor : neighbors) {
+                Integer neighborColor = colorMap.get(neighbor);
                 if (neighborColor != null)
                     usedColors[neighborColor] = true;
             }
 
             for (int color = 0; color < numColors; color++) {
                 if (!usedColors[color]) {
-                    colorMap.put(node.variable, color);
+                    colorMap.put(node, color);
                     break;
                 }
             }
 
-            for (Node neighbor : node.neighbors) {
-                neighbor.neighbors.remove(node);
-                if (neighbor.neighbors.size() < numColors)
+            for (var neighbor : neighbors) {
+                neighbors.remove(node);
+                if (neighbors.size() < numColors)
                     stack.push(neighbor);
             }
         }
