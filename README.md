@@ -60,7 +60,7 @@ During the development of your compiler you will update this file in order to se
 
 ## Self-Assessment
 
-We consider our project deserves a grade of 19 out of 20.
+We consider our project deserves a grade of 20 out of 20.
 
 ## Extras
 
