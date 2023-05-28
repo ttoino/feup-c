@@ -25,6 +25,7 @@ You can also see a test report by opening the file ``./build/reports/tests/test/
 
 
 ### Reports
+
 We also included in this project the class ``pt.up.fe.comp.jmm.report.Report``. This class is used to generate important reports, including error and warning messages, but also can be used to include debugging and logging information. E.g. When you want to generate an error, create a new Report with the ``Error`` type and provide the stage in which the error occurred.
 
 ### Parser Interface
@@ -37,7 +38,6 @@ To configure the name of the class of the JmmParser implementation that should b
 
 The project is divided in four compilation stages, that you will be developing during the semester. The stages are Parser, Analysis, Optimization and Backend, and for each of these stages there is a corresponding Java interface that you will have to implement (e.g. for the Parser stage, you have to implement the interface JmmParser).
 
-
 ### config.properties
 
 The testing framework, which uses the class ``pt.up.fe.comp.TestUtils``, has methods to test each of the four compilation stages (e.g., ``TestUtils.parse()`` for testing the Parser stage). 
@@ -45,7 +45,6 @@ The testing framework, which uses the class ``pt.up.fe.comp.TestUtils``, has met
 In order for the test class to find your implementations for the stages, it uses the file ``config.properties`` that is in root of your repository. It has four fields, one for each stage (i.e. ``ParserClass``, ``AnalysisClass``, ``OptimizationClass``, ``BackendClass``), and initially it only has one value, ``pt.up.fe.comp2023.SimpleParser``, associated with the first stage.
 
 During the development of your compiler you will update this file in order to setup the classes that implement each of the compilation stages.<br/><br/>
-
 
 ---
 
@@ -65,5 +64,15 @@ We consider our project deserves a grade of 19 out of 20.
 
 ## Extras
 
-`TBD`
+### Syntax and semantics
+
+Support for more Java syntax, including for loops, switch statements, and all java operators.
+
+### Ollir
+
+Ollir generation for all additional supported syntax, excluding the modulo operator, as it is not supported by ollir.
+
+### Optimizations
+
+Some dead code removal, like removal of code after returns, breaks and continues, and in unvisited branches in if statements.
 
