@@ -1,30 +1,34 @@
 package pt.up.fe.comp2023.optimization;
 
+import org.specs.comp.ollir.AssignInstruction;
 import org.specs.comp.ollir.ClassUnit;
 import org.specs.comp.ollir.Instruction;
 import org.specs.comp.ollir.Method;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
+import pt.up.fe.specs.util.graphs.Graph;
 
 import java.util.*;
+
 public class RegisterAllocator {
     private static class Node {
         String variable;
         Set<Node> neighbors = new HashSet<>();
-        // Other stuff...
+        Set<String> defs = new HashSet<>();
+        Set<String> uses = new HashSet<>();
+        Set<String> ins = new HashSet<>();
+        Set<String> outs = new HashSet<>();
     }
 
     public OllirResult optimizeRegisters(OllirResult ollirResult) {
         ClassUnit ollirClass = ollirResult.getOllirClass();
         ollirClass.buildCFGs();
 
-
         // Foreach method in the class, perform liveness analysis,
         // TODO: build the interference graph, and color the graph.
         for (Method method : ollirClass.getMethods()) {
-            method.
-            List<String> variables = parseVariables(method);
-            Map<String, Node> graph = buildInterferenceGraph(method, variables);
-            Map<String, Integer> colorMap = colorGraph(graph);
+            List<Node> nodes = parseVariables(method);
+            buildInterferenceGraph(nodes);
+            Map<String, Integer> colorMap = colorGraph(nodes);
 
             replaceWithRegisters(method, colorMap);
         }
@@ -32,16 +36,47 @@ public class RegisterAllocator {
         return ollirResult;
     }
 
-    private List<String> parseVariables(Method method) {
-        // Create a list to store the variable names
-        List<String> variables = new ArrayList<>();
+    private List<Node> parseVariables(Method method) {
+        // Create a list to store the nodes
+        List<Node> nodes = new ArrayList<>();
 
         // Iterate over the instructions of the method
         for (Instruction instruction : method.getInstructions()) {
-            // TODO: Extract variables from instruction and add to the list
+            Node node = new Node();
+
+            // Parsing defs and uses from instructiong
+            node.defs = new HashSet<>(instruction.getDefs());
+            node.uses = new HashSet<>(instruction.getUses());
+
+            nodes.add(node);
         }
 
-        return variables;
+        // Compute ins and outs iteratively
+        boolean changed;
+        do {
+            changed = false;
+            for (Node node : nodes) {
+                int oldInsSize = node.ins.size();
+                int oldOutsSize = node.outs.size();
+
+                node.ins.clear();
+                node.ins.addAll(node.uses);
+                for (String outVar : node.outs) {
+                    if (!node.defs.contains(outVar))
+                        node.ins.add(outVar);
+                }
+
+                for (Node neighbor : node.neighbors) {
+                    node.outs.addAll(neighbor.ins);
+                }
+
+                if (node.ins.size() != oldInsSize || node.outs.size() != oldOutsSize) {
+                    changed = true;
+                }
+            }
+        } while (changed);
+
+        return nodes;
     }
 
     private Map<String, Node> buildInterferenceGraph(Method method, List<String> variables) {
