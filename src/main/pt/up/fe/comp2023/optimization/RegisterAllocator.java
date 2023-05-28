@@ -29,7 +29,7 @@ public class RegisterAllocator {
             Map<String, Integer> colorMap = colorGraph(graph);
 
             int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
-            if (new TreeSet<>(colorMap.values()).size() > maxRegsAllowed)
+            if (maxRegsAllowed > 0 && new TreeSet<>(colorMap.values()).size() > maxRegsAllowed)
                 throw new RuntimeException("More regs than supposed");
 
             replaceWithRegisters(method, colorMap);
