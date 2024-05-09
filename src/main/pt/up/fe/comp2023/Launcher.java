@@ -105,18 +105,16 @@ public class Launcher {
 
         for (Report report : reports) {
             hasErrors |= report.getType() == ReportType.ERROR;
-            var out = report.getType() == ReportType.ERROR || report.getType() == ReportType.WARNING ? System.err : System.out;
             var type = report.getType().toString().toUpperCase();
-            var stage = report.getStage().toString().toUpperCase();
             var line = report.getLine() == -1 ? "" : ":" + report.getLine();
             var column = report.getColumn() == -1 ? "" : ":" + report.getColumn();
 
             if (debug || report.getType() != ReportType.DEBUG)
-                out.println(type + "@" + stage + line + column + " " + report.getMessage());
+                System.out.println("[" + type + "]" + line + column + " " + report.getMessage());
         }
 
         System.out.flush();
-        System.err.flush();
+        reports.clear();
 
         if (hasErrors) throw new RuntimeException("Found errors");
     }
