@@ -27,7 +27,7 @@ public class RegisterAllocator {
             int maxRegsAllowed = Integer.parseInt(ollirResult.getConfig().get("registerAllocation"));
             var colors = new TreeSet<>(colorMap.values());
             if (maxRegsAllowed > 0 && colors.size() > maxRegsAllowed)
-                throw new RuntimeException("More regs than supposed");
+                throw new IllegalStateException("More regs than supposed");
 
             replaceWithRegisters(method, colorMap);
         }
@@ -107,9 +107,10 @@ public class RegisterAllocator {
             if (call.getInvocationType() != CallType.invokestatic && call.getFirstArg() instanceof Operand op)
                 uses.add(op.getName());
 
-            for (Element operand: call.getListOfOperands())
-                if (operand instanceof Operand op)
-                    uses.add(op.getName());
+            if (call.getListOfOperands() != null)
+                for (Element operand: call.getListOfOperands())
+                    if (operand instanceof Operand op)
+                        uses.add(op.getName());
         } else if (instruction instanceof  ReturnInstruction ret) {
             if (ret.getOperand() instanceof Operand op)
                 uses.add(op.getName());
