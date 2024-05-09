@@ -35,6 +35,7 @@ public class ConstantFoldingVisitor extends PostorderJmmVisitor<Void, Boolean> {
         var rightValue = right.get("value");
         var op = node.get("op");
 
+        left.put("type", node.get("type"));
         left.put("value", ConstantUtils.calculate(leftValue, rightValue, op, leftType));
         node.replace(left);
 
