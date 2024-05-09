@@ -14,6 +14,8 @@ public class JasminOptimizer {
     private final Pattern loadStorePattern = Pattern.compile("\\s*([ia])load[\\s_](\\d+)\\n\\s*\\1store[\\s_]\\2\\n");
 
     public JasminResult optimize(JasminResult jasminResult) {
+        if (!Boolean.parseBoolean(jasminResult.getConfig().get("optimize")))
+            return jasminResult;
 
         String jasminCode = jasminResult.getJasminCode();
 
@@ -26,7 +28,6 @@ public class JasminOptimizer {
     }
 
     private String performOptimization(String jasminCode) {
-
         boolean codeChanged;
         do {
             int initialLength = jasminCode.length();
@@ -56,6 +57,5 @@ public class JasminOptimizer {
         jasminCode = matcher.replaceAll("$2");
 
         return jasminCode;
-
     }
 }

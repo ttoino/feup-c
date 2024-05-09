@@ -1,5 +1,6 @@
 package pt.up.fe.comp2023;
 
+import pt.limwa.jmm.protocol.JmmProtocolAdapter;
 import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
 import pt.up.fe.comp.jmm.jasmin.JasminResult;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
@@ -21,59 +22,53 @@ import java.util.Map;
 public class Launcher {
 
     public static void main(String[] args) {
-        // Setups console logging and other things
-        SpecsSystem.programStandardInit();
+        JmmProtocolAdapter.start(adapter -> {
+            // Setups console logging and other things
+            SpecsSystem.programStandardInit();
 
-        // Parse arguments as a map with predefined options
-        var config = parseArgs(args);
+            // Parse arguments as a map with predefined options
+            var config = parseArgs(args);
 
-        // Get input file
-        File inputFile = new File(config.get("inputFile"));
+            // Get input file
+            File inputFile = new File(config.get("inputFile"));
 
-        // Check if file exists
-        if (!inputFile.isFile()) {
-            throw new RuntimeException("Expected a path to an existing input file, got '" + inputFile + "'.");
-        }
+            // Check if file exists
+            if (!inputFile.isFile()) {
+                throw new RuntimeException("Expected a path to an existing input file, got '" + inputFile + "'.");
+            }
 
-        // Read contents of input file
-        String code = SpecsIo.read(inputFile);
+            // Read contents of input file
+            String code = SpecsIo.read(inputFile);
 
-        // Instantiate JmmParser
-        SimpleParser parser = new SimpleParser();
+            SimpleParser parser = new SimpleParser();
+            final JmmParserResult parserResult = parser.parse(code, config);
+            adapter.createSection("Parsing", () -> reports(config, parserResult.getReports()));
 
-        // Parse stage
-        JmmParserResult parserResult = parser.parse(code, config);
+            Analyzer analyzer = new Analyzer();
+            final JmmSemanticsResult semanticsResult = analyzer.semanticAnalysis(parserResult);
+            adapter.createSection("Semantic Analysis", () -> reports(config, semanticsResult.getReports()));
 
-        // Check if there are parsing errors
-        if (reports(config, parserResult.getReports())) return;
+            Optimizer optimizer = new Optimizer();
 
-        // ... add remaining stages
-        Analyzer analyzer = new Analyzer();
-        JmmSemanticsResult semanticsResult = analyzer.semanticAnalysis(parserResult);
+            final JmmSemanticsResult optimizedSemanticsResult = optimizer.optimize(semanticsResult);
+            adapter.createSection("Optimized AST", () -> reports(config, optimizedSemanticsResult.getReports()));
 
-        if (reports(config, semanticsResult.getReports())) return;
+            final OllirResult ollirResult = optimizer.toOllir(optimizedSemanticsResult);
+            adapter.createSection("OLLIR", () -> reports(config, ollirResult.getReports()));
 
-        Optimizer optimizer = new Optimizer();
+            final OllirResult optimizedOllirResult = optimizer.optimize(ollirResult);
+            adapter.createSection("Optimized OLLIR", () -> reports(config, optimizedOllirResult.getReports()));
 
-        semanticsResult = optimizer.optimize(semanticsResult);
-        OllirResult ollirResult = optimizer.toOllir(semanticsResult);
-        ollirResult = optimizer.optimize(ollirResult);
+            Backend backend = new Backend();
+            final JasminResult jasminResult = backend.toJasmin(optimizedOllirResult);
+            adapter.createSection("Jasmin", () -> reports(config, jasminResult.getReports()));
 
-        if (reports(config, ollirResult.getReports())) return;
-
-        Backend backend = new Backend();
-        JasminResult jasminResult = backend.toJasmin(ollirResult);
-
-        if (reports(config, jasminResult.getReports()) || code == null) return;
-
-        if (config.get("optimize").equals("true")) {
             JasminOptimizer jasminOptimizer = new JasminOptimizer();
+            final JasminResult optimizedJasminResult = jasminOptimizer.optimize(jasminResult);
+            adapter.createSection("Optimized Jasmin", () -> reports(config, optimizedJasminResult.getReports()));
 
-            jasminResult = jasminOptimizer.optimize(jasminResult);
-            if (reports(config, jasminResult.getReports())) return;
-        }
-
-        jasminResult.run();
+            adapter.createSection("Execution", () -> optimizedJasminResult.run());
+        });
     }
 
     private static Map<String, String> parseArgs(String[] args) {
@@ -104,7 +99,7 @@ public class Launcher {
         return config;
     }
 
-    private static boolean reports(Map<String, String> config, Collection<Report> reports) {
+    private static void reports(Map<String, String> config, Collection<Report> reports) throws RuntimeException {
         boolean hasErrors = false;
         boolean debug = Boolean.parseBoolean(config.get("debug"));
 
@@ -123,7 +118,7 @@ public class Launcher {
         System.out.flush();
         System.err.flush();
 
-        return hasErrors;
+        if (hasErrors) throw new RuntimeException("Found errors");
     }
 
 }
