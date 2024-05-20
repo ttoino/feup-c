@@ -104,7 +104,7 @@ public class RegisterAllocator {
         if (instruction instanceof AssignInstruction assign) {
             uses.addAll(getUses(assign.getRhs()));
         } else if (instruction instanceof  CallInstruction call) {
-            if (call.getInvocationType() != CallType.invokestatic && call.getFirstArg() instanceof Operand op)
+            if (call.getInvocationType() != CallType.invokestatic && call.getInvocationType() != CallType.NEW && call.getFirstArg() instanceof Operand op)
                 uses.add(op.getName());
 
             if (call.getListOfOperands() != null)
